@@ -1,0 +1,26 @@
+# Binaries
+/chat-server
+bin/
+
+# Dependency directories
+vendor/
+
+# Local configuration
+.env
+.env.local
+
+# IDEs
+.vscode/
+.idea/
+
+# Local databases / volumes
+/pgdata/
+/uploads/*
+!/uploads/.gitkeep
+
+# System files
+.DS_Store
+*.exe
+*.dll
+*.so
+*.dylib
