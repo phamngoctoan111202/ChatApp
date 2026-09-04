@@ -12,6 +12,7 @@ import (
 	"chat-app/internal/keys"
 	"chat-app/internal/media"
 	"chat-app/internal/message"
+	"chat-app/internal/redis"
 	"chat-app/internal/storage"
 
 	"github.com/go-chi/chi/v5"
@@ -40,6 +41,9 @@ func main() {
 		log.Println("Warning: DATABASE_URL not set. Running in database-less mode.")
 	}
 
+	// Initialize Redis Service for cluster Pub/Sub
+	redisSvc := redis.InitRedis()
+
 	r := chi.NewRouter()
 
 	// Configure standard HTTP middlewares
@@ -54,7 +58,7 @@ func main() {
 	mediaHandler := media.NewMediaHandler("./uploads")
 
 	// Initialize WebSocket Hub for real-time messages and WebRTC signaling
-	hub := message.NewHub(dbPool)
+	hub := message.NewHub(dbPool, redisSvc)
 	go hub.Run()
 
 	// ---- API ROUTE DEFINITIONS ----
