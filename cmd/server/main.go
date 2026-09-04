@@ -8,6 +8,7 @@ import (
 
 	"chat-app/db"
 	"chat-app/internal/auth"
+	"chat-app/internal/device"
 	"chat-app/internal/keys"
 	"chat-app/internal/media"
 	"chat-app/internal/message"
@@ -47,6 +48,7 @@ func main() {
 
 	// Initialize component handlers
 	authHandler := auth.NewAuthHandler(dbPool)
+	deviceHandler := device.NewDeviceHandler(dbPool)
 	keysHandler := keys.NewKeysHandler(dbPool)
 	storageHandler := storage.NewStorageHandler(dbPool)
 	mediaHandler := media.NewMediaHandler("./uploads")
@@ -60,7 +62,7 @@ func main() {
 	// 1. Healthcheck & Static files
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"healthy","message":"Chat App Backend is running"}`))
+		w.Write([]byte(`{"status":"healthy","message":"Signal-Lite Chat Server is running"}`))
 	})
 
 	// Route to serve static uploaded files from local uploads folder
@@ -75,25 +77,45 @@ func main() {
 
 	// Group v1 APIs
 	r.Route("/api/v1", func(r chi.Router) {
+		// Public Authentication Endpoints
 		r.Post("/auth/register", authHandler.Register)
+		r.Post("/auth/login", authHandler.Login)
+		r.Post("/auth/refresh", authHandler.RefreshToken)
 
-		r.Put("/keys", keysHandler.UploadKeys)
-		r.Get("/keys/{uuid}", keysHandler.GetPrekeyBundle)
+		// Public Prekey Bundle retrieval endpoint for recipient lookup
+		r.Get("/keys/user/{uuid}", keysHandler.GetUserPrekeyBundles)
 
-		r.Route("/storage", func(r chi.Router) {
-			r.Put("/keys", storageHandler.PutKey)
-			r.Get("/keys/{key}", storageHandler.GetKey)
-			r.Delete("/keys/{key}", storageHandler.DeleteKey)
-		})
-
+		// Public Media Proxy Endpoints
 		r.Route("/media", func(r chi.Router) {
 			r.Post("/upload", mediaHandler.UploadFile)
 			r.Get("/gif-search", mediaHandler.GIFSearch)
 			r.Get("/link-preview", mediaHandler.LinkPreview)
 		})
+
+		// Protected Endpoints (Requires valid JWT Bearer token)
+		r.Group(func(r chi.Router) {
+			r.Use(auth.AuthMiddleware)
+
+			// Multi-Device Management
+			r.Route("/devices", func(r chi.Router) {
+				r.Get("/", deviceHandler.ListDevices)
+				r.Post("/link", deviceHandler.LinkDevice)
+				r.Delete("/{device_id}", deviceHandler.UnlinkDevice)
+			})
+
+			// Prekey upload for authenticated device
+			r.Put("/keys", keysHandler.UploadKeys)
+
+			// Encrypted Storage Service
+			r.Route("/storage", func(r chi.Router) {
+				r.Put("/keys", storageHandler.PutKey)
+				r.Get("/keys/{key}", storageHandler.GetKey)
+				r.Delete("/keys/{key}", storageHandler.DeleteKey)
+			})
+		})
 	})
 
-	log.Printf("Server running on http://localhost:%s...\n", port)
+	log.Printf("Signal-Lite Server running on http://localhost:%s...\n", port)
 	if err := http.ListenAndServe(":"+port, r); err != nil {
 		log.Fatalf("Server startup failed: %v\n", err)
 	}

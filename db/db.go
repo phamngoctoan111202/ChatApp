@@ -37,43 +37,64 @@ func InitDB(databaseURL string) (*pgxpool.Pool, error) {
 
 func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	queries := []string{
-		// 1. Users table
+		// 1. Users table (Username + Bcrypt Password + Identity Key)
 		`CREATE TABLE IF NOT EXISTS users (
-			id UUID PRIMARY KEY,
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			username VARCHAR(64) UNIQUE NOT NULL,
+			password_hash TEXT NOT NULL,
 			identity_key TEXT NOT NULL,
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 		);`,
 
-		// 2. Signed Prekey table (Each user has 1 active Signed Prekey at a time)
+		// 2. Devices table (Multi-device management)
+		`CREATE TABLE IF NOT EXISTS devices (
+			user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+			device_id INT NOT NULL, -- 1: Primary Phone, 2+: Secondary Devices
+			name VARCHAR(128) NOT NULL,
+			push_token TEXT,
+			platform VARCHAR(32) DEFAULT 'unknown',
+			last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (user_id, device_id)
+		);`,
+
+		// 3. Signed Prekey table (per device_id)
 		`CREATE TABLE IF NOT EXISTS signed_prekeys (
-			user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+			user_id UUID NOT NULL,
+			device_id INT NOT NULL,
 			key_id INT NOT NULL,
 			public_key TEXT NOT NULL,
 			signature TEXT NOT NULL,
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (user_id, device_id),
+			FOREIGN KEY (user_id, device_id) REFERENCES devices(user_id, device_id) ON DELETE CASCADE
 		);`,
 
-		// 3. One-Time Prekeys table (Deleted after consumption for forward secrecy)
+		// 4. One-Time Prekeys table (per device_id)
 		`CREATE TABLE IF NOT EXISTS one_time_prekeys (
 			id SERIAL PRIMARY KEY,
-			user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+			user_id UUID NOT NULL,
+			device_id INT NOT NULL,
 			key_id INT NOT NULL,
 			public_key TEXT NOT NULL,
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE (user_id, key_id)
+			FOREIGN KEY (user_id, device_id) REFERENCES devices(user_id, device_id) ON DELETE CASCADE,
+			UNIQUE (user_id, device_id, key_id)
 		);`,
 
-		// 4. Offline messages queue
+		// 5. Offline messages queue (per recipient device_id)
 		`CREATE TABLE IF NOT EXISTS offline_messages (
-			id UUID PRIMARY KEY,
-			recipient_id UUID REFERENCES users(id) ON DELETE CASCADE,
-			sender_id UUID REFERENCES users(id) ON DELETE SET NULL,
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			recipient_id UUID NOT NULL,
+			recipient_device_id INT NOT NULL DEFAULT 1,
+			sender_id UUID,
 			ciphertext TEXT NOT NULL,
 			ephemeral_key TEXT,
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (recipient_id, recipient_device_id) REFERENCES devices(user_id, device_id) ON DELETE CASCADE
 		);`,
 
-		// 5. Encrypted Key-Value store (Storage Service)
+		// 6. Encrypted Key-Value store (Storage Service)
 		`CREATE TABLE IF NOT EXISTS encrypted_storage (
 			user_id UUID REFERENCES users(id) ON DELETE CASCADE,
 			key_name VARCHAR(255) NOT NULL,
@@ -91,6 +112,6 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		}
 	}
 
-	log.Println("Database schemas migrated successfully!")
+	log.Println("Database schemas migrated successfully for Multi-Device!")
 	return nil
 }
