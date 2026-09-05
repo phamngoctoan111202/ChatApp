@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"time"
 
+	"chat-app/internal/auth"
+	"chat-app/internal/block"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -26,6 +29,7 @@ func NewPresenceHandler(db *pgxpool.Pool) *PresenceHandler {
 
 // GetUserPresence retrieves the online/offline presence status and last seen timestamp of a user
 func (h *PresenceHandler) GetUserPresence(w http.ResponseWriter, r *http.Request) {
+	callerID := auth.GetUserIDFromContext(r.Context())
 	targetUserID := chi.URLParam(r, "id")
 	if targetUserID == "" {
 		http.Error(w, `{"error":"Missing user id"}`, http.StatusBadRequest)
@@ -43,6 +47,13 @@ func (h *PresenceHandler) GetUserPresence(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		http.Error(w, `{"error":"User not found or failed to query presence"}`, http.StatusNotFound)
 		return
+	}
+
+	// If target user has blocked or restricted the caller, hide online presence status
+	if callerID != "" && callerID != targetUserID {
+		if blocked, _ := block.IsBlocked(h.db, targetUserID, callerID); blocked {
+			dto.IsOnline = false
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -9,6 +9,7 @@ import (
 
 	"chat-app/db"
 	"chat-app/internal/auth"
+	"chat-app/internal/block"
 	"chat-app/internal/device"
 	"chat-app/internal/ephemeral"
 	"chat-app/internal/group"
@@ -69,6 +70,7 @@ func main() {
 	storageHandler := storage.NewStorageHandler(dbPool)
 	mediaHandler := media.NewMediaHandler("./uploads", dbPool)
 	presenceHandler := presence.NewPresenceHandler(dbPool)
+	blockHandler := block.NewBlockHandler(dbPool)
 
 	// Initialize WebSocket Hub for real-time messages and WebRTC signaling
 	hub := message.NewHub(dbPool, redisSvc)
@@ -146,8 +148,13 @@ func main() {
 			// Prekey upload for authenticated device
 			r.Put("/keys", keysHandler.UploadKeys)
 
-			// User Presence Status
-			r.Get("/users/{id}/presence", presenceHandler.GetUserPresence)
+			// User Presence & Block / Restrict Service
+			r.Route("/users", func(r chi.Router) {
+				r.Get("/{id}/presence", presenceHandler.GetUserPresence)
+				r.Post("/block", blockHandler.BlockUser)
+				r.Delete("/block/{user_id}", blockHandler.UnblockUser)
+				r.Get("/blocked", blockHandler.ListBlockedUsers)
+			})
 
 			// Encrypted Storage Service
 			r.Route("/storage", func(r chi.Router) {

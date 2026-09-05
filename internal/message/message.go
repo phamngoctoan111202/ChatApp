@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"chat-app/internal/auth"
+	"chat-app/internal/block"
 	"chat-app/internal/presence"
 	"chat-app/internal/push"
 	"chat-app/internal/redis"
@@ -184,13 +185,15 @@ func (h *Hub) RouteMessage(msg *WSMessage) {
 
 	// Handle 1-to-1 Chat Fan-Out
 	if msg.RecipientID != "" {
-		recipientDevices := h.getUserDeviceIDs(ctx, msg.RecipientID)
-		senderDevices := h.getUserDeviceIDs(ctx, senderUserID)
-
-		for _, devID := range recipientDevices {
-			h.deliverOrQueue(ctx, msg.RecipientID, devID, &msgToSend, senderUserID)
+		isBlocked, _ := block.IsBlocked(h.db, msg.RecipientID, senderUserID)
+		if !isBlocked {
+			recipientDevices := h.getUserDeviceIDs(ctx, msg.RecipientID)
+			for _, devID := range recipientDevices {
+				h.deliverOrQueue(ctx, msg.RecipientID, devID, &msgToSend, senderUserID)
+			}
 		}
 
+		senderDevices := h.getUserDeviceIDs(ctx, senderUserID)
 		for _, devID := range senderDevices {
 			if devID != senderDevID {
 				h.deliverOrQueue(ctx, senderUserID, devID, &msgToSend, senderUserID)
@@ -269,7 +272,10 @@ func (h *Hub) deliverOrQueue(ctx context.Context, targetUserID string, targetDev
 	}
 
 	// Target device is offline -> Trigger Push Notification (FCM/APNs) & Queue to PostgreSQL
-	push.SendPushNotification(ctx, h.db, targetUserID, targetDeviceID, "New E2EE Message Available")
+	_, mode := block.IsBlocked(h.db, targetUserID, actualSenderID)
+	if mode != "restrict" {
+		push.SendPushNotification(ctx, h.db, targetUserID, targetDeviceID, "New E2EE Message Available")
+	}
 	h.queueOfflineMessage(ctx, targetUserID, targetDeviceID, &msgCopy, actualSenderID)
 }
 
