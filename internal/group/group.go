@@ -284,3 +284,58 @@ func (h *GroupHandler) GetSenderKeys(w http.ResponseWriter, r *http.Request) {
 		"sender_keys": keysList,
 	})
 }
+
+// RemoveMember removes a target member from group (requires caller to be group admin or target removing self)
+func (h *GroupHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
+	callerID := auth.GetUserIDFromContext(r.Context())
+	groupID := chi.URLParam(r, "id")
+	targetUserID := chi.URLParam(r, "user_id")
+
+	if callerID == "" || groupID == "" || targetUserID == "" {
+		http.Error(w, `{"error":"Missing group_id or target user_id"}`, http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Check caller role in group
+	var callerRole string
+	err := h.db.QueryRow(ctx, "SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2", groupID, callerID).Scan(&callerRole)
+	if err != nil {
+		http.Error(w, `{"error":"Caller is not a member of this group"}`, http.StatusForbidden)
+		return
+	}
+
+	// Only admin or target user leaving self is allowed
+	if callerRole != "admin" && callerID != targetUserID {
+		http.Error(w, `{"error":"Only group admin can remove other members"}`, http.StatusForbidden)
+		return
+	}
+
+	tx, err := h.db.Begin(ctx)
+	if err != nil {
+		http.Error(w, `{"error":"Database transaction error"}`, http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	// Remove from group_members
+	_, err = tx.Exec(ctx, "DELETE FROM group_members WHERE group_id = $1 AND user_id = $2", groupID, targetUserID)
+	if err != nil {
+		http.Error(w, `{"error":"Failed to remove member from group"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Remove member's group_sender_keys
+	_, _ = tx.Exec(ctx, "DELETE FROM group_sender_keys WHERE group_id = $1 AND sender_id = $2", groupID, targetUserID)
+
+	if err := tx.Commit(ctx); err != nil {
+		http.Error(w, `{"error":"Transaction commit error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message":"Member removed from group successfully"}`))
+}

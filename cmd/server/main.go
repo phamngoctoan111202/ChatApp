@@ -129,6 +129,7 @@ func main() {
 				r.Get("/", groupHandler.ListUserGroups)
 				r.Get("/{id}/members", groupHandler.GetGroupMembers)
 				r.Post("/{id}/members", groupHandler.AddMembers)
+				r.Delete("/{id}/members/{user_id}", groupHandler.RemoveMember)
 				r.Put("/{id}/sender-keys", groupHandler.UploadSenderKey)
 				r.Get("/{id}/sender-keys", groupHandler.GetSenderKeys)
 			})
