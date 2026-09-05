@@ -9,6 +9,7 @@ import (
 	"chat-app/db"
 	"chat-app/internal/auth"
 	"chat-app/internal/device"
+	"chat-app/internal/group"
 	"chat-app/internal/keys"
 	"chat-app/internal/media"
 	"chat-app/internal/message"
@@ -54,6 +55,7 @@ func main() {
 	// Initialize component handlers
 	authHandler := auth.NewAuthHandler(dbPool)
 	deviceHandler := device.NewDeviceHandler(dbPool)
+	groupHandler := group.NewGroupHandler(dbPool)
 	keysHandler := keys.NewKeysHandler(dbPool)
 	sealedHandler := sealed.NewSealedHandler()
 	storageHandler := storage.NewStorageHandler(dbPool)
@@ -110,6 +112,16 @@ func main() {
 
 			// Zero-Knowledge Encrypted Attachment Upload Endpoint
 			r.Post("/attachments/upload", mediaHandler.UploadEncryptedBlob)
+
+			// Signal Group V2 E2EE & Sender Keys Protocol
+			r.Route("/groups", func(r chi.Router) {
+				r.Post("/", groupHandler.CreateGroup)
+				r.Get("/", groupHandler.ListUserGroups)
+				r.Get("/{id}/members", groupHandler.GetGroupMembers)
+				r.Post("/{id}/members", groupHandler.AddMembers)
+				r.Put("/{id}/sender-keys", groupHandler.UploadSenderKey)
+				r.Get("/{id}/sender-keys", groupHandler.GetSenderKeys)
+			})
 
 			// Multi-Device Management
 			r.Route("/devices", func(r chi.Router) {

@@ -31,11 +31,12 @@ type WSMessage struct {
 	Event             string                    `json:"event"`                         // "message", "signaling", "ack"
 	SenderID          string                    `json:"sender_id,omitempty"`           // Sender User UUID (Empty for Sealed Sender)
 	SenderDeviceID    int                       `json:"sender_device_id,omitempty"`    // Sender Device ID
-	RecipientID       string                    `json:"recipient_id"`                  // Recipient User UUID
+	RecipientID       string                    `json:"recipient_id,omitempty"`        // Recipient User UUID (1-to-1)
 	RecipientDeviceID int                       `json:"recipient_device_id,omitempty"` // Specific Recipient Device ID (0 = Fan-out)
+	GroupID           string                    `json:"group_id,omitempty"`            // Group UUID (for Signal Group V2 E2EE Chat)
 	IsSealed          bool                      `json:"is_sealed,omitempty"`           // True if using Sealed Sender protocol
 	SealedCertificate *sealed.SenderCertificate `json:"sealed_certificate,omitempty"`  // Unidentified Delivery Certificate
-	Data              json.RawMessage           `json:"data"`                          // Encrypted payload
+	Data              json.RawMessage           `json:"data"`                          // Encrypted payload (Single cipher or Sender Key payload)
 	Timestamp         int64                     `json:"timestamp"`
 }
 
@@ -127,7 +128,7 @@ func (h *Hub) subscribeDeviceRedis(client *Client) {
 	}
 }
 
-// RouteMessage performs Multi-Device Fan-Out routing to recipient devices AND sender secondary devices
+// RouteMessage performs Multi-Device Fan-Out routing for 1-to-1 messages or Group Messages (Signal Group V2)
 func (h *Hub) RouteMessage(msg *WSMessage) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -141,16 +142,9 @@ func (h *Hub) RouteMessage(msg *WSMessage) {
 			log.Printf("Sealed Sender rejection: Invalid or expired certificate (%v)\n", err)
 			return
 		}
-		// Extract identity internally for routing, but keep outer envelope SenderID anonymous
 		senderUserID = msg.SealedCertificate.UserID
 		senderDevID = msg.SealedCertificate.DeviceID
 	}
-
-	// 1. Get all active target devices for Recipient
-	recipientDevices := h.getUserDeviceIDs(ctx, msg.RecipientID)
-
-	// 2. Get all active target devices for Sender (for syncing sent message to sender's other devices)
-	senderDevices := h.getUserDeviceIDs(ctx, senderUserID)
 
 	// Anonymize sender in outer message payload if Sealed Sender is used
 	msgToSend := *msg
@@ -159,26 +153,63 @@ func (h *Hub) RouteMessage(msg *WSMessage) {
 		msgToSend.SenderDeviceID = 0
 	}
 
-	// Route to all recipient devices
-	for _, devID := range recipientDevices {
-		h.deliverOrQueue(ctx, msg.RecipientID, devID, &msgToSend, senderUserID)
+	// Handle Group Chat Fan-Out (Signal Group V2)
+	if msg.GroupID != "" {
+		memberIDs := h.getGroupMemberIDs(ctx, msg.GroupID)
+		for _, memberID := range memberIDs {
+			devIDs := h.getUserDeviceIDs(ctx, memberID)
+			for _, devID := range devIDs {
+				// Exclude origin sender device
+				if memberID == senderUserID && devID == senderDevID {
+					continue
+				}
+				h.deliverOrQueue(ctx, memberID, devID, &msgToSend, senderUserID)
+			}
+		}
+		h.sendACK(senderUserID, senderDevID, msg.GroupID, msg.Event)
+		return
 	}
 
-	// Route to sender's secondary devices (excluding current sender device)
-	for _, devID := range senderDevices {
-		if devID != senderDevID {
-			h.deliverOrQueue(ctx, senderUserID, devID, &msgToSend, senderUserID)
+	// Handle 1-to-1 Chat Fan-Out
+	if msg.RecipientID != "" {
+		recipientDevices := h.getUserDeviceIDs(ctx, msg.RecipientID)
+		senderDevices := h.getUserDeviceIDs(ctx, senderUserID)
+
+		for _, devID := range recipientDevices {
+			h.deliverOrQueue(ctx, msg.RecipientID, devID, &msgToSend, senderUserID)
+		}
+
+		for _, devID := range senderDevices {
+			if devID != senderDevID {
+				h.deliverOrQueue(ctx, senderUserID, devID, &msgToSend, senderUserID)
+			}
+		}
+
+		h.sendACK(senderUserID, senderDevID, msg.RecipientID, msg.Event)
+	}
+}
+
+func (h *Hub) getGroupMemberIDs(ctx context.Context, groupID string) []string {
+	rows, err := h.db.Query(ctx, "SELECT user_id FROM group_members WHERE group_id = $1", groupID)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	var members []string
+	for rows.Next() {
+		var uid string
+		if err := rows.Scan(&uid); err == nil {
+			members = append(members, uid)
 		}
 	}
-
-	// Send ACK back to sender's origin device
-	h.sendACK(senderUserID, senderDevID, msg.RecipientID, msg.Event)
+	return members
 }
 
 func (h *Hub) getUserDeviceIDs(ctx context.Context, userID string) []int {
 	rows, err := h.db.Query(ctx, "SELECT device_id FROM devices WHERE user_id = $1", userID)
 	if err != nil {
-		return []int{1} // Fallback to primary device 1
+		return []int{1}
 	}
 	defer rows.Close()
 
@@ -214,11 +245,9 @@ func (h *Hub) deliverOrQueue(ctx context.Context, targetUserID string, targetDev
 		case client.Send <- msgBytes:
 			return
 		default:
-			// Buffer full -> fallback to offline queue
 		}
 	}
 
-	// Try Redis PubSub publishing if running in cluster mode
 	if h.redis != nil && h.redis.Client != nil {
 		channel := "signal:msg:" + targetUserID + ":" + strconv.Itoa(targetDeviceID)
 		err := h.redis.PublishMessage(ctx, channel, msgBytes)
@@ -227,7 +256,6 @@ func (h *Hub) deliverOrQueue(ctx context.Context, targetUserID string, targetDev
 		}
 	}
 
-	// Target device is offline -> queue to PostgreSQL
 	h.queueOfflineMessage(ctx, targetUserID, targetDeviceID, &msgCopy, actualSenderID)
 }
 
@@ -252,7 +280,7 @@ func (h *Hub) queueOfflineMessage(ctx context.Context, recipientID string, recip
 		log.Printf("Failed to save offline message for user %s (device %d): %v\n", recipientID, recipientDeviceID, err)
 		return
 	}
-	log.Printf("Saved 1 offline message for user %s (device %d) [Sealed: %v].\n", recipientID, recipientDeviceID, msg.IsSealed)
+	log.Printf("Saved 1 offline message for user %s (device %d).\n", recipientID, recipientDeviceID)
 }
 
 func (h *Hub) deliverOfflineMessages(client *Client) {
@@ -325,7 +353,7 @@ func (h *Hub) deliverOfflineMessages(client *Client) {
 	}
 }
 
-func (h *Hub) sendACK(senderID string, senderDeviceID int, recipientID string, originEvent string) {
+func (h *Hub) sendACK(senderID string, senderDeviceID int, targetID string, originEvent string) {
 	h.mutex.RLock()
 	client, online := h.clients[senderID][senderDeviceID]
 	h.mutex.RUnlock()
@@ -335,7 +363,7 @@ func (h *Hub) sendACK(senderID string, senderDeviceID int, recipientID string, o
 	}
 
 	ackData, _ := json.Marshal(map[string]interface{}{
-		"recipient_id": recipientID,
+		"target_id":    targetID,
 		"origin_event": originEvent,
 		"status":       "delivered",
 	})
@@ -380,7 +408,6 @@ func (c *Client) ReadPump() {
 			continue
 		}
 
-		// Only populate SenderID for non-sealed messages to prevent spoofing
 		if !msg.IsSealed {
 			msg.SenderID = c.UserID
 			msg.SenderDeviceID = c.DeviceID
@@ -436,7 +463,6 @@ func (c *Client) WritePump() {
 
 // ServeWS authenticates WebSocket connection via JWT token and registers Client with UserID & DeviceID
 func ServeWS(hub *Hub, w http.ResponseWriter, r *http.Request) {
-	// Extract JWT token from query parameter ?token=... or Authorization header
 	tokenStr := r.URL.Query().Get("token")
 	if tokenStr == "" {
 		authHeader := r.Header.Get("Authorization")

@@ -112,6 +112,34 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			digest_sha256 TEXT NOT NULL,
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 		);`,
+
+		// 8. Groups table (Signal Group V2)
+		`CREATE TABLE IF NOT EXISTS groups (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			title_ciphertext TEXT NOT NULL,
+			avatar_url TEXT,
+			creator_id UUID REFERENCES users(id) ON DELETE SET NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);`,
+
+		// 9. Group Members table
+		`CREATE TABLE IF NOT EXISTS group_members (
+			group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
+			user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+			role VARCHAR(32) DEFAULT 'member',
+			joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (group_id, user_id)
+		);`,
+
+		// 10. Group Sender Keys table (Signal Sender Keys Protocol)
+		`CREATE TABLE IF NOT EXISTS group_sender_keys (
+			group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
+			sender_id UUID REFERENCES users(id) ON DELETE CASCADE,
+			device_id INT NOT NULL,
+			sender_key_blob TEXT NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (group_id, sender_id, device_id)
+		);`,
 	}
 
 	for i, q := range queries {
