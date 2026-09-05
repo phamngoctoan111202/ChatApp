@@ -12,6 +12,7 @@ import (
 
 	"chat-app/internal/auth"
 	"chat-app/internal/redis"
+	"chat-app/internal/sealed"
 
 	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -27,13 +28,15 @@ var upgrader = websocket.Upgrader{
 
 // WSMessage defines the format of messages sent/received via WebSocket
 type WSMessage struct {
-	Event             string          `json:"event"`               // "message", "signaling", "ack"
-	SenderID          string          `json:"sender_id"`           // Sender User UUID
-	SenderDeviceID    int             `json:"sender_device_id"`    // Sender Device ID
-	RecipientID       string          `json:"recipient_id"`        // Recipient User UUID
-	RecipientDeviceID int             `json:"recipient_device_id"` // Specific Recipient Device ID (0 = Fan-out)
-	Data              json.RawMessage `json:"data"`                // Encrypted payload
-	Timestamp         int64           `json:"timestamp"`
+	Event             string                    `json:"event"`                         // "message", "signaling", "ack"
+	SenderID          string                    `json:"sender_id,omitempty"`           // Sender User UUID (Empty for Sealed Sender)
+	SenderDeviceID    int                       `json:"sender_device_id,omitempty"`    // Sender Device ID
+	RecipientID       string                    `json:"recipient_id"`                  // Recipient User UUID
+	RecipientDeviceID int                       `json:"recipient_device_id,omitempty"` // Specific Recipient Device ID (0 = Fan-out)
+	IsSealed          bool                      `json:"is_sealed,omitempty"`           // True if using Sealed Sender protocol
+	SealedCertificate *sealed.SenderCertificate `json:"sealed_certificate,omitempty"`  // Unidentified Delivery Certificate
+	Data              json.RawMessage           `json:"data"`                          // Encrypted payload
+	Timestamp         int64                     `json:"timestamp"`
 }
 
 // Client represents an active WebSocket connection
@@ -129,26 +132,47 @@ func (h *Hub) RouteMessage(msg *WSMessage) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	senderUserID := msg.SenderID
+	senderDevID := msg.SenderDeviceID
+
+	// Handle Sealed Sender Verification (Anonymized Sender Envelope)
+	if msg.IsSealed {
+		if err := sealed.VerifyCertificate(msg.SealedCertificate); err != nil {
+			log.Printf("Sealed Sender rejection: Invalid or expired certificate (%v)\n", err)
+			return
+		}
+		// Extract identity internally for routing, but keep outer envelope SenderID anonymous
+		senderUserID = msg.SealedCertificate.UserID
+		senderDevID = msg.SealedCertificate.DeviceID
+	}
+
 	// 1. Get all active target devices for Recipient
 	recipientDevices := h.getUserDeviceIDs(ctx, msg.RecipientID)
 
 	// 2. Get all active target devices for Sender (for syncing sent message to sender's other devices)
-	senderDevices := h.getUserDeviceIDs(ctx, msg.SenderID)
+	senderDevices := h.getUserDeviceIDs(ctx, senderUserID)
+
+	// Anonymize sender in outer message payload if Sealed Sender is used
+	msgToSend := *msg
+	if msg.IsSealed {
+		msgToSend.SenderID = ""
+		msgToSend.SenderDeviceID = 0
+	}
 
 	// Route to all recipient devices
 	for _, devID := range recipientDevices {
-		h.deliverOrQueue(ctx, msg.RecipientID, devID, msg)
+		h.deliverOrQueue(ctx, msg.RecipientID, devID, &msgToSend, senderUserID)
 	}
 
 	// Route to sender's secondary devices (excluding current sender device)
 	for _, devID := range senderDevices {
-		if devID != msg.SenderDeviceID {
-			h.deliverOrQueue(ctx, msg.SenderID, devID, msg)
+		if devID != senderDevID {
+			h.deliverOrQueue(ctx, senderUserID, devID, &msgToSend, senderUserID)
 		}
 	}
 
 	// Send ACK back to sender's origin device
-	h.sendACK(msg.SenderID, msg.SenderDeviceID, msg.RecipientID, msg.Event)
+	h.sendACK(senderUserID, senderDevID, msg.RecipientID, msg.Event)
 }
 
 func (h *Hub) getUserDeviceIDs(ctx context.Context, userID string) []int {
@@ -171,7 +195,7 @@ func (h *Hub) getUserDeviceIDs(ctx context.Context, userID string) []int {
 	return devIDs
 }
 
-func (h *Hub) deliverOrQueue(ctx context.Context, targetUserID string, targetDeviceID int, msg *WSMessage) {
+func (h *Hub) deliverOrQueue(ctx context.Context, targetUserID string, targetDeviceID int, msg *WSMessage, actualSenderID string) {
 	msgCopy := *msg
 	msgCopy.RecipientID = targetUserID
 	msgCopy.RecipientDeviceID = targetDeviceID
@@ -204,26 +228,31 @@ func (h *Hub) deliverOrQueue(ctx context.Context, targetUserID string, targetDev
 	}
 
 	// Target device is offline -> queue to PostgreSQL
-	h.queueOfflineMessage(ctx, targetUserID, targetDeviceID, &msgCopy)
+	h.queueOfflineMessage(ctx, targetUserID, targetDeviceID, &msgCopy, actualSenderID)
 }
 
-func (h *Hub) queueOfflineMessage(ctx context.Context, recipientID string, recipientDeviceID int, msg *WSMessage) {
+func (h *Hub) queueOfflineMessage(ctx context.Context, recipientID string, recipientDeviceID int, msg *WSMessage, actualSenderID string) {
 	var payload struct {
 		Ciphertext   string `json:"ciphertext"`
 		EphemeralKey string `json:"ephemeral_key"`
 	}
 	_ = json.Unmarshal(msg.Data, &payload)
 
+	var dbSenderID *string
+	if !msg.IsSealed && actualSenderID != "" {
+		dbSenderID = &actualSenderID
+	}
+
 	query := `
 		INSERT INTO offline_messages (id, recipient_id, recipient_device_id, sender_id, ciphertext, ephemeral_key)
 		VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
 	`
-	_, err := h.db.Exec(ctx, query, recipientID, recipientDeviceID, msg.SenderID, payload.Ciphertext, payload.EphemeralKey)
+	_, err := h.db.Exec(ctx, query, recipientID, recipientDeviceID, dbSenderID, payload.Ciphertext, payload.EphemeralKey)
 	if err != nil {
 		log.Printf("Failed to save offline message for user %s (device %d): %v\n", recipientID, recipientDeviceID, err)
 		return
 	}
-	log.Printf("Saved 1 offline message for user %s (device %d).\n", recipientID, recipientDeviceID)
+	log.Printf("Saved 1 offline message for user %s (device %d) [Sealed: %v].\n", recipientID, recipientDeviceID, msg.IsSealed)
 }
 
 func (h *Hub) deliverOfflineMessages(client *Client) {
@@ -351,8 +380,11 @@ func (c *Client) ReadPump() {
 			continue
 		}
 
-		msg.SenderID = c.UserID
-		msg.SenderDeviceID = c.DeviceID
+		// Only populate SenderID for non-sealed messages to prevent spoofing
+		if !msg.IsSealed {
+			msg.SenderID = c.UserID
+			msg.SenderDeviceID = c.DeviceID
+		}
 		msg.Timestamp = time.Now().Unix()
 
 		if msg.Event == "message" || msg.Event == "signaling" {

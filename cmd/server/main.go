@@ -13,6 +13,7 @@ import (
 	"chat-app/internal/media"
 	"chat-app/internal/message"
 	"chat-app/internal/redis"
+	"chat-app/internal/sealed"
 	"chat-app/internal/storage"
 
 	"github.com/go-chi/chi/v5"
@@ -54,6 +55,7 @@ func main() {
 	authHandler := auth.NewAuthHandler(dbPool)
 	deviceHandler := device.NewDeviceHandler(dbPool)
 	keysHandler := keys.NewKeysHandler(dbPool)
+	sealedHandler := sealed.NewSealedHandler()
 	storageHandler := storage.NewStorageHandler(dbPool)
 	mediaHandler := media.NewMediaHandler("./uploads")
 
@@ -99,6 +101,9 @@ func main() {
 		// Protected Endpoints (Requires valid JWT Bearer token)
 		r.Group(func(r chi.Router) {
 			r.Use(auth.AuthMiddleware)
+
+			// Sealed Sender Certificate Endpoint
+			r.Get("/sealed/certificate", sealedHandler.GetCertificate)
 
 			// Multi-Device Management
 			r.Route("/devices", func(r chi.Router) {
