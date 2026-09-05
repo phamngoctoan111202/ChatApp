@@ -57,7 +57,7 @@ func main() {
 	keysHandler := keys.NewKeysHandler(dbPool)
 	sealedHandler := sealed.NewSealedHandler()
 	storageHandler := storage.NewStorageHandler(dbPool)
-	mediaHandler := media.NewMediaHandler("./uploads")
+	mediaHandler := media.NewMediaHandler("./uploads", dbPool)
 
 	// Initialize WebSocket Hub for real-time messages and WebRTC signaling
 	hub := message.NewHub(dbPool, redisSvc)
@@ -91,6 +91,9 @@ func main() {
 		// Public Prekey Bundle retrieval endpoint for recipient lookup
 		r.Get("/keys/user/{uuid}", keysHandler.GetUserPrekeyBundles)
 
+		// Public Encrypted Attachment Download Endpoint
+		r.Get("/attachments/{id}", mediaHandler.GetEncryptedBlob)
+
 		// Public Media Proxy Endpoints
 		r.Route("/media", func(r chi.Router) {
 			r.Post("/upload", mediaHandler.UploadFile)
@@ -104,6 +107,9 @@ func main() {
 
 			// Sealed Sender Certificate Endpoint
 			r.Get("/sealed/certificate", sealedHandler.GetCertificate)
+
+			// Zero-Knowledge Encrypted Attachment Upload Endpoint
+			r.Post("/attachments/upload", mediaHandler.UploadEncryptedBlob)
 
 			// Multi-Device Management
 			r.Route("/devices", func(r chi.Router) {

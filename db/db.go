@@ -103,6 +103,15 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (user_id, key_name)
 		);`,
+
+		// 7. Encrypted Media Attachments table (Zero-Knowledge Storage)
+		`CREATE TABLE IF NOT EXISTS attachments (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			uploader_id UUID REFERENCES users(id) ON DELETE SET NULL,
+			size_bytes BIGINT NOT NULL,
+			digest_sha256 TEXT NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);`,
 	}
 
 	for i, q := range queries {
