@@ -166,6 +166,10 @@ func (h *Hub) RouteMessage(msg *WSMessage) {
 		msgToSend.SenderDeviceID = 0
 	}
 
+	if msg.Event == "watch_together" {
+		log.Printf("Relaying Watch Together sync event from User %s (Device %d) [Group: %s, Recipient: %s]\n", senderUserID, senderDevID, msg.GroupID, msg.RecipientID)
+	}
+
 	// Handle Group Chat Fan-Out (Signal Group V2)
 	if msg.GroupID != "" {
 		memberIDs := h.getGroupMemberIDs(ctx, msg.GroupID)

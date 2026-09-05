@@ -21,6 +21,7 @@ import (
 	"chat-app/internal/redis"
 	"chat-app/internal/sealed"
 	"chat-app/internal/storage"
+	"chat-app/internal/watchtogether"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -71,6 +72,7 @@ func main() {
 	mediaHandler := media.NewMediaHandler("./uploads", dbPool)
 	presenceHandler := presence.NewPresenceHandler(dbPool)
 	blockHandler := block.NewBlockHandler(dbPool)
+	watchTogetherHandler := watchtogether.NewWatchTogetherHandler(dbPool)
 
 	// Initialize WebSocket Hub for real-time messages and WebRTC signaling
 	hub := message.NewHub(dbPool, redisSvc)
@@ -161,6 +163,13 @@ func main() {
 				r.Put("/keys", storageHandler.PutKey)
 				r.Get("/keys/{key}", storageHandler.GetKey)
 				r.Delete("/keys/{key}", storageHandler.DeleteKey)
+			})
+
+			// Watch Together Synchronous Playback Relay
+			r.Route("/watch-together", func(r chi.Router) {
+				r.Post("/room", watchTogetherHandler.CreateRoom)
+				r.Get("/room/{room_id}", watchTogetherHandler.GetRoomState)
+				r.Post("/room/{room_id}/sync", watchTogetherHandler.SyncRoomState)
 			})
 		})
 	})
