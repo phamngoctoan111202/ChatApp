@@ -15,6 +15,7 @@ import (
 	"chat-app/internal/keys"
 	"chat-app/internal/media"
 	"chat-app/internal/message"
+	"chat-app/internal/presence"
 	"chat-app/internal/push"
 	"chat-app/internal/redis"
 	"chat-app/internal/sealed"
@@ -67,6 +68,7 @@ func main() {
 	sealedHandler := sealed.NewSealedHandler()
 	storageHandler := storage.NewStorageHandler(dbPool)
 	mediaHandler := media.NewMediaHandler("./uploads", dbPool)
+	presenceHandler := presence.NewPresenceHandler(dbPool)
 
 	// Initialize WebSocket Hub for real-time messages and WebRTC signaling
 	hub := message.NewHub(dbPool, redisSvc)
@@ -143,6 +145,9 @@ func main() {
 
 			// Prekey upload for authenticated device
 			r.Put("/keys", keysHandler.UploadKeys)
+
+			// User Presence Status
+			r.Get("/users/{id}/presence", presenceHandler.GetUserPresence)
 
 			// Encrypted Storage Service
 			r.Route("/storage", func(r chi.Router) {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"chat-app/internal/auth"
+	"chat-app/internal/presence"
 	"chat-app/internal/push"
 	"chat-app/internal/redis"
 	"chat-app/internal/sealed"
@@ -85,6 +86,9 @@ func (h *Hub) Run() {
 
 			log.Printf("User %s (Device %d) is online via WebSocket.\n", client.UserID, client.DeviceID)
 
+			// Update presence status to online
+			go presence.SetUserPresence(h.db, client.UserID, true)
+
 			// Deliver pending offline messages for this device
 			go h.deliverOfflineMessages(client)
 
@@ -93,6 +97,7 @@ func (h *Hub) Run() {
 
 		case client := <-h.unregister:
 			h.mutex.Lock()
+			isFullyOffline := false
 			if devMap, ok := h.clients[client.UserID]; ok {
 				if _, exists := devMap[client.DeviceID]; exists {
 					delete(devMap, client.DeviceID)
@@ -101,9 +106,14 @@ func (h *Hub) Run() {
 				}
 				if len(devMap) == 0 {
 					delete(h.clients, client.UserID)
+					isFullyOffline = true
 				}
 			}
 			h.mutex.Unlock()
+
+			if isFullyOffline {
+				go presence.SetUserPresence(h.db, client.UserID, false)
+			}
 		}
 	}
 }
