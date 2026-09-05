@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"chat-app/internal/auth"
+	"chat-app/internal/push"
 	"chat-app/internal/redis"
 	"chat-app/internal/sealed"
 
@@ -36,7 +37,8 @@ type WSMessage struct {
 	GroupID           string                    `json:"group_id,omitempty"`            // Group UUID (for Signal Group V2 E2EE Chat)
 	IsSealed          bool                      `json:"is_sealed,omitempty"`           // True if using Sealed Sender protocol
 	SealedCertificate *sealed.SenderCertificate `json:"sealed_certificate,omitempty"`  // Unidentified Delivery Certificate
-	Data              json.RawMessage           `json:"data"`                          // Encrypted payload (Single cipher or Sender Key payload)
+	TTLSeconds        int                       `json:"ttl_seconds,omitempty"`         // Disappearing Messages Ephemeral TTL (0 = permanent)
+	Data              json.RawMessage           `json:"data"`                          // Encrypted payload
 	Timestamp         int64                     `json:"timestamp"`
 }
 
@@ -256,6 +258,8 @@ func (h *Hub) deliverOrQueue(ctx context.Context, targetUserID string, targetDev
 		}
 	}
 
+	// Target device is offline -> Trigger Push Notification (FCM/APNs) & Queue to PostgreSQL
+	push.SendPushNotification(ctx, h.db, targetUserID, targetDeviceID, "New E2EE Message Available")
 	h.queueOfflineMessage(ctx, targetUserID, targetDeviceID, &msgCopy, actualSenderID)
 }
 
@@ -272,15 +276,15 @@ func (h *Hub) queueOfflineMessage(ctx context.Context, recipientID string, recip
 	}
 
 	query := `
-		INSERT INTO offline_messages (id, recipient_id, recipient_device_id, sender_id, ciphertext, ephemeral_key)
-		VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
+		INSERT INTO offline_messages (id, recipient_id, recipient_device_id, sender_id, ciphertext, ephemeral_key, ephemeral_ttl_seconds)
+		VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
 	`
-	_, err := h.db.Exec(ctx, query, recipientID, recipientDeviceID, dbSenderID, payload.Ciphertext, payload.EphemeralKey)
+	_, err := h.db.Exec(ctx, query, recipientID, recipientDeviceID, dbSenderID, payload.Ciphertext, payload.EphemeralKey, msg.TTLSeconds)
 	if err != nil {
 		log.Printf("Failed to save offline message for user %s (device %d): %v\n", recipientID, recipientDeviceID, err)
 		return
 	}
-	log.Printf("Saved 1 offline message for user %s (device %d).\n", recipientID, recipientDeviceID)
+	log.Printf("Saved 1 offline message for user %s (device %d) [TTL: %ds].\n", recipientID, recipientDeviceID, msg.TTLSeconds)
 }
 
 func (h *Hub) deliverOfflineMessages(client *Client) {

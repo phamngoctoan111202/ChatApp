@@ -5,14 +5,17 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"chat-app/db"
 	"chat-app/internal/auth"
 	"chat-app/internal/device"
+	"chat-app/internal/ephemeral"
 	"chat-app/internal/group"
 	"chat-app/internal/keys"
 	"chat-app/internal/media"
 	"chat-app/internal/message"
+	"chat-app/internal/push"
 	"chat-app/internal/redis"
 	"chat-app/internal/sealed"
 	"chat-app/internal/storage"
@@ -39,6 +42,9 @@ func main() {
 			log.Fatalf("Database initialization failed: %v\n", err)
 		}
 		defer dbPool.Close()
+
+		// Start background Ephemeral Message Cleanup Worker (Purges expired offline messages every 30s)
+		go ephemeral.StartWorker(dbPool, 30*time.Second)
 	} else {
 		log.Println("Warning: DATABASE_URL not set. Running in database-less mode.")
 	}
@@ -57,6 +63,7 @@ func main() {
 	deviceHandler := device.NewDeviceHandler(dbPool)
 	groupHandler := group.NewGroupHandler(dbPool)
 	keysHandler := keys.NewKeysHandler(dbPool)
+	pushHandler := push.NewPushHandler(dbPool)
 	sealedHandler := sealed.NewSealedHandler()
 	storageHandler := storage.NewStorageHandler(dbPool)
 	mediaHandler := media.NewMediaHandler("./uploads", dbPool)
@@ -112,6 +119,9 @@ func main() {
 
 			// Zero-Knowledge Encrypted Attachment Upload Endpoint
 			r.Post("/attachments/upload", mediaHandler.UploadEncryptedBlob)
+
+			// FCM / APNs Push Notification Token Registration
+			r.Post("/push/token", pushHandler.RegisterPushToken)
 
 			// Signal Group V2 E2EE & Sender Keys Protocol
 			r.Route("/groups", func(r chi.Router) {
