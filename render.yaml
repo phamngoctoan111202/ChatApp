@@ -13,6 +13,11 @@ services:
         fromDatabase:
           name: chatapp-db
           property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: chatapp-redis
+          property: connectionString
       - key: REDIS_ADDR
         fromService:
           type: redis

@@ -16,6 +16,9 @@ type RedisService struct {
 func InitRedis() *RedisService {
 	redisURL := os.Getenv("REDIS_URL")
 	if redisURL == "" {
+		redisURL = os.Getenv("REDIS_ADDR")
+	}
+	if redisURL == "" {
 		redisURL = "localhost:6379"
 	}
 

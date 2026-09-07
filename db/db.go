@@ -90,6 +90,7 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			sender_id UUID,
 			ciphertext TEXT NOT NULL,
 			ephemeral_key TEXT,
+			ephemeral_ttl_seconds INT DEFAULT 0,
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (recipient_id, recipient_device_id) REFERENCES devices(user_id, device_id) ON DELETE CASCADE
 		);`,
@@ -200,6 +201,9 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
 			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 		);`,
+
+		// 18. Add ephemeral_ttl_seconds column to existing offline_messages table
+		`ALTER TABLE offline_messages ADD COLUMN IF NOT EXISTS ephemeral_ttl_seconds INT DEFAULT 0;`,
 	}
 
 	for i, q := range queries {
