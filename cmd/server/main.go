@@ -20,6 +20,7 @@ import (
 	"chat-app/internal/poll"
 	"chat-app/internal/presence"
 	"chat-app/internal/push"
+	"chat-app/internal/reaction"
 	"chat-app/internal/redis"
 	"chat-app/internal/sealed"
 	"chat-app/internal/storage"
@@ -77,6 +78,7 @@ func main() {
 	watchTogetherHandler := watchtogether.NewWatchTogetherHandler(dbPool)
 	pollHandler := poll.NewPollHandler(dbPool)
 	pinHandler := pin.NewPinHandler(dbPool)
+	reactionHandler := reaction.NewReactionHandler(dbPool)
 
 	// Initialize WebSocket Hub for real-time messages and WebRTC signaling
 	hub := message.NewHub(dbPool, redisSvc)
@@ -188,6 +190,13 @@ func main() {
 				r.Post("/", pinHandler.PinMessage)
 				r.Delete("/{chat_id}/{message_id}", pinHandler.UnpinMessage)
 				r.Get("/{chat_id}", pinHandler.GetPinnedMessages)
+			})
+
+			// Message Emoji Reactions Service
+			r.Route("/reactions", func(r chi.Router) {
+				r.Post("/", reactionHandler.AddReaction)
+				r.Delete("/", reactionHandler.RemoveReaction)
+				r.Get("/message/{message_id}", reactionHandler.GetMessageReactions)
 			})
 		})
 	})

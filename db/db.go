@@ -182,6 +182,15 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 			CONSTRAINT unique_chat_message_pin UNIQUE(chat_id, message_id)
 		);`,
+
+		// 16. Message Emoji Reactions table
+		`CREATE TABLE IF NOT EXISTS message_reactions (
+			message_id VARCHAR(128) NOT NULL,
+			user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+			emoji VARCHAR(32) NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (message_id, user_id, emoji)
+		);`,
 	}
 
 	for i, q := range queries {
