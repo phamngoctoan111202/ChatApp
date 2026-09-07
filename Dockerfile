@@ -20,6 +20,7 @@ WORKDIR /root/
 
 # Copy compiled binary from builder stage
 COPY --from=builder /app/chat-server .
+COPY --from=builder /app/docs ./docs
 
 EXPOSE 8080
 

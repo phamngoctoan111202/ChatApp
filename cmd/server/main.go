@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"chat-app/db"
+	"chat-app/docs"
 	"chat-app/internal/auth"
 	"chat-app/internal/block"
 	"chat-app/internal/device"
@@ -101,7 +102,13 @@ func main() {
 
 	// Swagger Interactive API Documentation UI Endpoint
 	r.Get("/swagger/doc.json", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, filepath.Join(workDir, "docs", "swagger.json"))
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		data, err := docs.SwaggerJSON.ReadFile("swagger.json")
+		if err != nil {
+			http.Error(w, `{"error":"Swagger specification doc missing"}`, http.StatusNotFound)
+			return
+		}
+		w.Write(data)
 	})
 	r.Get("/swagger", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/swagger/", http.StatusFound)
