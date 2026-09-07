@@ -91,7 +91,7 @@ func main() {
 	// 1. Healthcheck & Static files
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"healthy","message":"Signal-Lite Chat Server is running"}`))
+		w.Write([]byte(`{"status":"healthy","message":"Chat Server is running"}`))
 	})
 
 	// Route to serve static uploaded files from local uploads folder
@@ -210,7 +210,7 @@ func main() {
 		})
 	})
 
-	log.Printf("Signal-Lite Server running on http://localhost:%s...\n", port)
+	log.Printf("Chat Server running on http://localhost:%s...\n", port)
 	if err := http.ListenAndServe(":"+port, r); err != nil {
 		log.Fatalf("Server startup failed: %v\n", err)
 	}

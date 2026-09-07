@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: signal-lite-chat-backend
+    name: chatapp-backend
     env: docker
     dockerfilePath: Dockerfile
     plan: free
@@ -11,22 +11,22 @@ services:
         value: "8080"
       - key: DATABASE_URL
         fromDatabase:
-          name: signal-lite-db
+          name: chatapp-db
           property: connectionString
       - key: REDIS_ADDR
         fromService:
           type: redis
-          name: signal-lite-redis
+          name: chatapp-redis
           property: connectionString
 
   - type: redis
-    name: signal-lite-redis
+    name: chatapp-redis
     plan: free
     ipAllowList: []
     region: singapore
 
 databases:
-  - name: signal-lite-db
+  - name: chatapp-db
     plan: free
     databaseName: chat_db
     user: postgres
