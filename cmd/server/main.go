@@ -16,6 +16,7 @@ import (
 	"chat-app/internal/keys"
 	"chat-app/internal/media"
 	"chat-app/internal/message"
+	"chat-app/internal/poll"
 	"chat-app/internal/presence"
 	"chat-app/internal/push"
 	"chat-app/internal/redis"
@@ -73,6 +74,7 @@ func main() {
 	presenceHandler := presence.NewPresenceHandler(dbPool)
 	blockHandler := block.NewBlockHandler(dbPool)
 	watchTogetherHandler := watchtogether.NewWatchTogetherHandler(dbPool)
+	pollHandler := poll.NewPollHandler(dbPool)
 
 	// Initialize WebSocket Hub for real-time messages and WebRTC signaling
 	hub := message.NewHub(dbPool, redisSvc)
@@ -170,6 +172,13 @@ func main() {
 				r.Post("/room", watchTogetherHandler.CreateRoom)
 				r.Get("/room/{room_id}", watchTogetherHandler.GetRoomState)
 				r.Post("/room/{room_id}/sync", watchTogetherHandler.SyncRoomState)
+			})
+
+			// Group Polls / Voting Service
+			r.Route("/polls", func(r chi.Router) {
+				r.Post("/", pollHandler.CreatePoll)
+				r.Post("/{id}/vote", pollHandler.CastVote)
+				r.Get("/{id}", pollHandler.GetPoll)
 			})
 		})
 	})

@@ -153,6 +153,25 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (blocker_id, blocked_id)
 		);`,
+
+		// 13. Polls table
+		`CREATE TABLE IF NOT EXISTS polls (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
+			creator_id UUID REFERENCES users(id) ON DELETE CASCADE,
+			question_ciphertext TEXT NOT NULL,
+			options_json JSONB NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);`,
+
+		// 14. Poll Votes table
+		`CREATE TABLE IF NOT EXISTS poll_votes (
+			poll_id UUID REFERENCES polls(id) ON DELETE CASCADE,
+			user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+			option_index INT NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (poll_id, user_id)
+		);`,
 	}
 
 	for i, q := range queries {
