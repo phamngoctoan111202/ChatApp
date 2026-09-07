@@ -1,0 +1,398 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Chat App Backend API Documentation",
+    "description": "Interactive Swagger OpenAPI documentation for the Signal-Lite E2EE Chat Backend API server.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local Development Server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Enter your JWT token obtained from /api/v1/auth/login"
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Server Health Check",
+        "responses": {
+          "200": { "description": "Server is healthy" }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "summary": "User Registration",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" },
+                  "identity_key": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "User registered" } }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "summary": "User Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" },
+                  "device_id": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "JWT tokens returned" } }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "summary": "Refresh JWT Token",
+        "responses": { "200": { "description": "Token refreshed" } }
+      }
+    },
+    "/api/v1/keys/user/{uuid}": {
+      "get": {
+        "summary": "Get Recipient Prekey Bundle (X3DH)",
+        "parameters": [
+          { "name": "uuid", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Prekey bundle details" } }
+      }
+    },
+    "/api/v1/keys": {
+      "put": {
+        "summary": "Upload Device Prekeys (X3DH)",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Keys uploaded" } }
+      }
+    },
+    "/api/v1/sealed/certificate": {
+      "get": {
+        "summary": "Get Sealed Sender Certificate",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Sealed sender cert returned" } }
+      }
+    },
+    "/api/v1/attachments/upload": {
+      "post": {
+        "summary": "Upload Encrypted Attachment Blob (Zero-Knowledge)",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Attachment uploaded" } }
+      }
+    },
+    "/api/v1/attachments/{id}": {
+      "get": {
+        "summary": "Download Encrypted Attachment Blob",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Binary blob" } }
+      }
+    },
+    "/api/v1/groups": {
+      "post": {
+        "summary": "Create E2EE Group",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "201": { "description": "Group created" } }
+      },
+      "get": {
+        "summary": "List User Groups",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Group list" } }
+      }
+    },
+    "/api/v1/groups/{id}/members": {
+      "get": {
+        "summary": "Get Group Members",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Members list" } }
+      },
+      "post": {
+        "summary": "Add Group Members",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Members added" } }
+      }
+    },
+    "/api/v1/groups/{id}/members/{user_id}": {
+      "delete": {
+        "summary": "Remove Group Member / Self-Leave",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "user_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Member removed" } }
+      }
+    },
+    "/api/v1/groups/{id}/sender-keys": {
+      "put": {
+        "summary": "Upload Group Sender Key Bundle",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Sender key uploaded" } }
+      },
+      "get": {
+        "summary": "Get Group Sender Key Bundles",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Sender keys list" } }
+      }
+    },
+    "/api/v1/devices": {
+      "get": {
+        "summary": "List Authenticated User Devices",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Device list" } }
+      }
+    },
+    "/api/v1/devices/link": {
+      "post": {
+        "summary": "Link Secondary Device",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Device linked" } }
+      }
+    },
+    "/api/v1/devices/{device_id}": {
+      "delete": {
+        "summary": "Unlink Device",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "device_id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "Device unlinked" } }
+      }
+    },
+    "/api/v1/users/{id}/presence": {
+      "get": {
+        "summary": "Get User Presence & Last Seen Status",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Presence info" } }
+      }
+    },
+    "/api/v1/users/block": {
+      "post": {
+        "summary": "Block or Restrict User",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "User blocked or restricted" } }
+      }
+    },
+    "/api/v1/users/block/{user_id}": {
+      "delete": {
+        "summary": "Unblock User",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "user_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "User unblocked" } }
+      }
+    },
+    "/api/v1/users/blocked": {
+      "get": {
+        "summary": "List Blocked/Restricted Users",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Blocked list" } }
+      }
+    },
+    "/api/v1/watch-together/room": {
+      "post": {
+        "summary": "Create Watch Together Room Session",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "201": { "description": "Room created" } }
+      }
+    },
+    "/api/v1/watch-together/room/{room_id}": {
+      "get": {
+        "summary": "Get Watch Together Playback State",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "room_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Room state" } }
+      }
+    },
+    "/api/v1/watch-together/room/{room_id}/sync": {
+      "post": {
+        "summary": "Sync Watch Together Playback Action",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "room_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Action synced" } }
+      }
+    },
+    "/api/v1/polls": {
+      "post": {
+        "summary": "Create Group Poll",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "201": { "description": "Poll created" } }
+      }
+    },
+    "/api/v1/polls/{id}/vote": {
+      "post": {
+        "summary": "Cast Vote on Poll",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Vote recorded" } }
+      }
+    },
+    "/api/v1/polls/{id}": {
+      "get": {
+        "summary": "Get Poll Details & Vote Tallies",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Poll details" } }
+      }
+    },
+    "/api/v1/pins": {
+      "post": {
+        "summary": "Pin Message in Chat",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "201": { "description": "Message pinned" } }
+      }
+    },
+    "/api/v1/pins/{chat_id}/{message_id}": {
+      "delete": {
+        "summary": "Unpin Message",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "chat_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "message_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Message unpinned" } }
+      }
+    },
+    "/api/v1/pins/{chat_id}": {
+      "get": {
+        "summary": "List Pinned Messages in Chat",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "chat_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Pinned messages list" } }
+      }
+    },
+    "/api/v1/reactions": {
+      "post": {
+        "summary": "Add Emoji Reaction to Message",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Reaction added" } }
+      },
+      "delete": {
+        "summary": "Remove Emoji Reaction from Message",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Reaction removed" } }
+      }
+    },
+    "/api/v1/reactions/message/{message_id}": {
+      "get": {
+        "summary": "Get Message Reactions Summary",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "message_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Reactions summary" } }
+      }
+    },
+    "/api/v1/location/share": {
+      "post": {
+        "summary": "Start / Update Live Location Sharing",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Location shared" } }
+      }
+    },
+    "/api/v1/location/user/{user_id}": {
+      "get": {
+        "summary": "Get Target User Live Location",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "user_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Live location" } }
+      }
+    },
+    "/api/v1/location/stop": {
+      "delete": {
+        "summary": "Stop Live Location Sharing",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Location stopped" } }
+      }
+    },
+    "/api/v1/push/token": {
+      "post": {
+        "summary": "Register FCM/APNs Push Notification Token",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Token registered" } }
+      }
+    },
+    "/api/v1/storage/keys": {
+      "put": {
+        "summary": "Save Encrypted Storage Key-Value",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "KV saved" } }
+      }
+    },
+    "/api/v1/storage/keys/{key}": {
+      "get": {
+        "summary": "Get Encrypted Storage Key-Value",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "key", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "KV value" } }
+      },
+      "delete": {
+        "summary": "Delete Encrypted Storage Key-Value",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "key", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "KV deleted" } }
+      }
+    }
+  }
+}
