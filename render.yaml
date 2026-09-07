@@ -4,11 +4,11 @@ services:
     env: docker
     dockerfilePath: Dockerfile
     plan: free
-    region: singapore # Hoặc oregon / frankfurt
+    region: singapore
     autoDeploy: true
     envVars:
       - key: PORT
-        value: 8080
+        value: "8080"
       - key: DATABASE_URL
         fromDatabase:
           name: signal-lite-db
@@ -19,15 +19,15 @@ services:
           name: signal-lite-redis
           property: connectionString
 
+  - type: redis
+    name: signal-lite-redis
+    plan: free
+    ipAllowList: []
+    region: singapore
+
 databases:
   - name: signal-lite-db
     plan: free
     databaseName: chat_db
     user: postgres
-    region: singapore
-
-  - type: redis
-    name: signal-lite-redis
-    plan: free
-    ipAllowList: []
     region: singapore
