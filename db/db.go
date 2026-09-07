@@ -191,6 +191,15 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (message_id, user_id, emoji)
 		);`,
+
+		// 17. Live Location Sharing table
+		`CREATE TABLE IF NOT EXISTS live_locations (
+			user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+			latitude DOUBLE PRECISION NOT NULL,
+			longitude DOUBLE PRECISION NOT NULL,
+			expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);`,
 	}
 
 	for i, q := range queries {

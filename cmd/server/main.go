@@ -14,6 +14,7 @@ import (
 	"chat-app/internal/ephemeral"
 	"chat-app/internal/group"
 	"chat-app/internal/keys"
+	"chat-app/internal/location"
 	"chat-app/internal/media"
 	"chat-app/internal/message"
 	"chat-app/internal/pin"
@@ -79,6 +80,7 @@ func main() {
 	pollHandler := poll.NewPollHandler(dbPool)
 	pinHandler := pin.NewPinHandler(dbPool)
 	reactionHandler := reaction.NewReactionHandler(dbPool)
+	locationHandler := location.NewLocationHandler(dbPool)
 
 	// Initialize WebSocket Hub for real-time messages and WebRTC signaling
 	hub := message.NewHub(dbPool, redisSvc)
@@ -197,6 +199,13 @@ func main() {
 				r.Post("/", reactionHandler.AddReaction)
 				r.Delete("/", reactionHandler.RemoveReaction)
 				r.Get("/message/{message_id}", reactionHandler.GetMessageReactions)
+			})
+
+			// Live Location Sharing Service
+			r.Route("/location", func(r chi.Router) {
+				r.Post("/share", locationHandler.ShareLocation)
+				r.Get("/user/{user_id}", locationHandler.GetLocation)
+				r.Delete("/stop", locationHandler.StopSharing)
 			})
 		})
 	})
