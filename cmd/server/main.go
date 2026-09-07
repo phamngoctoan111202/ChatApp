@@ -101,21 +101,22 @@ func main() {
 	FileServer(r, "/uploads", filesDir)
 
 	// Swagger Interactive API Documentation UI Endpoint
-	r.Get("/swagger/doc.json", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		data, err := docs.SwaggerJSON.ReadFile("swagger.json")
-		if err != nil {
-			http.Error(w, `{"error":"Swagger specification doc missing"}`, http.StatusNotFound)
-			return
-		}
-		w.Write(data)
-	})
 	r.Get("/swagger", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/swagger/", http.StatusFound)
 	})
-	r.Get("/swagger/*", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		swaggerHTML := `<!DOCTYPE html>
+	r.Route("/swagger", func(r chi.Router) {
+		r.Get("/doc.json", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			data, err := docs.SwaggerJSON.ReadFile("swagger.json")
+			if err != nil {
+				http.Error(w, `{"error":"Swagger specification doc missing"}`, http.StatusNotFound)
+				return
+			}
+			w.Write(data)
+		})
+		r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			swaggerHTML := `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -150,7 +151,8 @@ func main() {
   </script>
 </body>
 </html>`
-		w.Write([]byte(swaggerHTML))
+			w.Write([]byte(swaggerHTML))
+		})
 	})
 
 	// 2. WebSocket Gateway
