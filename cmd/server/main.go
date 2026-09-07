@@ -16,6 +16,7 @@ import (
 	"chat-app/internal/keys"
 	"chat-app/internal/media"
 	"chat-app/internal/message"
+	"chat-app/internal/pin"
 	"chat-app/internal/poll"
 	"chat-app/internal/presence"
 	"chat-app/internal/push"
@@ -75,6 +76,7 @@ func main() {
 	blockHandler := block.NewBlockHandler(dbPool)
 	watchTogetherHandler := watchtogether.NewWatchTogetherHandler(dbPool)
 	pollHandler := poll.NewPollHandler(dbPool)
+	pinHandler := pin.NewPinHandler(dbPool)
 
 	// Initialize WebSocket Hub for real-time messages and WebRTC signaling
 	hub := message.NewHub(dbPool, redisSvc)
@@ -179,6 +181,13 @@ func main() {
 				r.Post("/", pollHandler.CreatePoll)
 				r.Post("/{id}/vote", pollHandler.CastVote)
 				r.Get("/{id}", pollHandler.GetPoll)
+			})
+
+			// Pinned Messages Service
+			r.Route("/pins", func(r chi.Router) {
+				r.Post("/", pinHandler.PinMessage)
+				r.Delete("/{chat_id}/{message_id}", pinHandler.UnpinMessage)
+				r.Get("/{chat_id}", pinHandler.GetPinnedMessages)
 			})
 		})
 	})

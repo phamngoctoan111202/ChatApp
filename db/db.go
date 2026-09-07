@@ -172,6 +172,16 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (poll_id, user_id)
 		);`,
+
+		// 15. Pinned Messages table
+		`CREATE TABLE IF NOT EXISTS pinned_messages (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			chat_id VARCHAR(128) NOT NULL,
+			message_id VARCHAR(128) NOT NULL,
+			pinned_by UUID REFERENCES users(id) ON DELETE CASCADE,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			CONSTRAINT unique_chat_message_pin UNIQUE(chat_id, message_id)
+		);`,
 	}
 
 	for i, q := range queries {
