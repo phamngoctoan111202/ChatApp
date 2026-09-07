@@ -89,10 +89,13 @@ func main() {
 
 	// ---- API ROUTE DEFINITIONS ----
 
-	// 1. Healthcheck & Static files
+	// 1. Healthcheck & Root Redirect to Swagger UI
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"healthy","message":"Chat Server is running"}`))
+	})
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/swagger/", http.StatusFound)
 	})
 
 	// Route to serve static uploaded files from local uploads folder
