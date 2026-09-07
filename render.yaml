@@ -29,5 +29,4 @@ databases:
   - name: chatapp-db
     plan: free
     databaseName: chat_db
-    user: postgres
     region: singapore
