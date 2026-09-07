@@ -18,6 +18,12 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: chat-redis
+    ports:
+      - "6379:6379"
+
   backend:
     build:
       context: .
@@ -28,9 +34,12 @@ services:
     environment:
       - PORT=8080
       - DATABASE_URL=postgres://postgres:mysecretpassword@db:5432/chat_db?sslmode=disable
+      - REDIS_ADDR=redis:6379
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
 
 volumes:
   pgdata:
