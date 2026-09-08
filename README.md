@@ -1,41 +1,41 @@
 # Chat App Backend
 
-Backend dịch vụ nhắn tin thời gian thực hiệu năng cao, tối giản và hỗ trợ mã hóa đầu cuối (End-to-End Encryption - E2EE) bằng ngôn ngữ Go.
+High-performance, minimal, and secure End-to-End Encryption (E2EE) real-time messaging backend built with Go.
 
-## 🚀 Các Tính Năng Cốt Lõi
-1. **Mật mã học E2EE (X3DH):** Đăng ký và quản lý Prekey Bundles (Identity Key, Signed Prekey, One-Time Prekeys) hỗ trợ client tự thiết lập kênh mã hóa bất đối xứng.
-2. **WebSocket Realtime Gateway:** Định tuyến tin nhắn thời gian thực và chuyển tiếp tín hiệu cuộc gọi WebRTC (SDP/ICE Candidates) giữa các client.
-3. **Offline Message Queue:** Lưu trữ tạm thời tin nhắn khi người nhận ngoại tuyến. Đẩy tin nhắn đi và xóa ngay lập tức khi họ kết nối lại (Zero-Knowledge delivery).
-4. **Encrypted Storage Service:** API lưu trữ đám mây mã hóa dạng Key-Value (lưu trữ danh bạ, cấu hình thiết bị mà server không thể đọc rõ nội dung).
-5. **Media & Social:**
-   * API Tải lên hình ảnh/video (Stickers, Stories).
-   * Proxy tìm kiếm GIF ẩn danh qua Tenor API.
-   * Parse xem trước liên kết (Link Preview OpenGraph).
-6. **Anti-Spam & Rate Limit:** Xác thực Cloudflare Turnstile để chống bot đăng ký tài khoản tự động.
+## 🚀 Core Features
+1. **E2EE Cryptography Support (Signal Protocol X3DH):** Registration and pre-key bundle management (Identity Key, Signed Prekey, One-Time Prekeys) allowing clients to establish asymmetric encrypted channels securely.
+2. **WebSocket Realtime Gateway:** Real-time message routing and WebRTC call signaling proxy (SDP/ICE Candidates) between client peers.
+3. **Offline Message Queue:** Temporary message queuing when recipients are offline. Messages are delivered and immediately deleted upon reconnection (Zero-Knowledge delivery).
+4. **Encrypted Storage Service:** Encrypted cloud Key-Value storage API for user contacts and device configurations without exposing plain text to the server.
+5. **Media & Social Integrations:**
+   - Image & Video Upload API (Stickers, Stories).
+   - Anonymous GIF search proxy via Tenor API.
+   - OpenGraph Link Preview parser.
+6. **Anti-Spam & Rate Limiting:** Cloudflare Turnstile verification protecting authentication endpoints against automated bots.
 
 ## 🛠️ Tech Stack
 * **Language:** Go 1.21+
 * **HTTP/Router:** `go-chi/chi/v5`
 * **Realtime Network:** `gorilla/websocket`
-* **Database Driver:** `jackc/pgx/v5` (PostgreSQL)
+* **Database Driver:** `jackc/pgx/v5` & GORM (PostgreSQL)
 * **Containerization:** Docker & Docker Compose
 
-## 💻 Hướng Dẫn Khởi Chạy Local
+## 💻 Local Setup & Deployment
 
-### 1. Yêu Cầu Hệ Thống
-* Đã cài đặt **Docker** và **Docker Compose**.
+### 1. Requirements
+* Installed **Docker** and **Docker Compose**.
 
-### 2. Khởi chạy dự án
-Di chuyển vào thư mục dự án và chạy Docker Compose:
+### 2. Run Locally
+Navigate to the repository directory and run Docker Compose:
 ```bash
 docker compose up --build
 ```
-Hệ thống sẽ tự động khởi tạo database PostgreSQL, chạy SQL Migrations cấu hình bảng và khởi động web server chạy tại cổng `8080`.
+The application will automatically initialize the PostgreSQL database, run SQL schema migrations, and launch the HTTP web server on port `8080`.
 
-### 3. Kiểm tra hoạt động
+### 3. Verification & Health Check
 * **API Health Check:**
   ```bash
   curl http://localhost:8080/health
   ```
-  Trả về: `{"status":"healthy","message":"Chat App Backend is running"}`
+  Expected Response: `{"status":"ok","timestamp":"..."}`
 * **WebSocket Endpoint:** `ws://localhost:8080/ws?uuid=<user_uuid>`
