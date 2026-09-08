@@ -112,6 +112,7 @@ func main() {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		data, err := docs.SwaggerJSON.ReadFile("swagger.json")
 		if err != nil {
+			logger.Log.Error("Failed to load embedded Swagger JSON specification", "error", err)
 			http.Error(w, `{"error":"Swagger specification doc missing"}`, http.StatusNotFound)
 			return
 		}
