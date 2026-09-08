@@ -176,6 +176,8 @@ func main() {
 		r.Post("/auth/refresh", authHandler.RefreshToken)
 		r.Post("/auth/otp/send", authHandler.SendOTP)
 		r.Post("/auth/otp/verify", authHandler.VerifyOTP)
+		r.Post("/auth/google", authHandler.GoogleLogin)
+		r.Post("/auth/apple", authHandler.AppleLogin)
 
 		// Public Prekey Bundle retrieval endpoint for recipient lookup
 		r.Get("/keys/user/{uuid}", keysHandler.GetUserPrekeyBundles)
