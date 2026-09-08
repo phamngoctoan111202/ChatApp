@@ -182,6 +182,10 @@ func main() {
 		r.Post("/auth/passkeys/register", authHandler.RegisterPasskey)
 		r.Post("/auth/passkeys/login", authHandler.PasskeyLogin)
 
+		// Public QR Code Multi-Device Linking Endpoints
+		r.Post("/devices/qr/generate", deviceHandler.GenerateQRSession)
+		r.Get("/devices/qr/status", deviceHandler.GetQRSessionStatus)
+
 		// Public Prekey Bundle retrieval endpoint for recipient lookup
 		r.Get("/keys/user/{uuid}", keysHandler.GetUserPrekeyBundles)
 
@@ -223,6 +227,7 @@ func main() {
 			r.Route("/devices", func(r chi.Router) {
 				r.Get("/", deviceHandler.ListDevices)
 				r.Post("/link", deviceHandler.LinkDevice)
+				r.Post("/qr/approve", deviceHandler.ApproveQRSession)
 				r.Delete("/{device_id}", deviceHandler.UnlinkDevice)
 			})
 
