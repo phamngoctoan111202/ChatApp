@@ -48,7 +48,141 @@
             }
           }
         },
-        "responses": { "201": { "description": "User registered" } }
+        "responses": {
+          "201": { "description": "User created successfully" }
+        }
+      }
+    },
+    "/api/v1/auth/otp/send": {
+      "post": {
+        "summary": "Send SMS OTP Verification Code",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone_number": { "type": "string", "example": "+84912345678" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OTP sent successfully" } }
+      }
+    },
+    "/api/v1/auth/otp/verify": {
+      "post": {
+        "summary": "Verify SMS OTP & Register/Login Phone Account",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone_number": { "type": "string", "example": "+84912345678" },
+                  "otp": { "type": "string", "example": "123456" },
+                  "identity_key": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Authenticated successfully" } }
+      }
+    },
+    "/api/v1/auth/google": {
+      "post": {
+        "summary": "Google Social OAuth Login/Register",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id_token": { "type": "string" },
+                  "identity_key": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Authenticated successfully" } }
+      }
+    },
+    "/api/v1/auth/apple": {
+      "post": {
+        "summary": "Apple Social OAuth Login/Register",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id_token": { "type": "string" },
+                  "identity_key": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Authenticated successfully" } }
+      }
+    },
+    "/api/v1/auth/passkeys/challenge": {
+      "get": {
+        "summary": "Get Cryptographic Challenge for WebAuthn Passkey Signature",
+        "responses": { "200": { "description": "Challenge generated" } }
+      }
+    },
+    "/api/v1/auth/passkeys/login": {
+      "post": {
+        "summary": "Passkey Biometric Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "credential_id": { "type": "string" },
+                  "signature": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Passkey login successful" } }
+      }
+    },
+    "/api/v1/devices/qr/generate": {
+      "post": {
+        "summary": "Generate QR Session for Desktop/Web Device Linking",
+        "responses": { "201": { "description": "QR session created" } }
+      }
+    },
+    "/api/v1/devices/qr/approve": {
+      "post": {
+        "summary": "Approve Secondary Device QR Link (Requires Bearer Auth)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "qr_session_id": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Device linked" } }
       }
     },
     "/api/v1/auth/login": {
