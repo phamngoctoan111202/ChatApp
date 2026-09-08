@@ -37,13 +37,31 @@ func InitDB(databaseURL string) (*pgxpool.Pool, error) {
 
 func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	queries := []string{
-		// 1. Users table (Username + Bcrypt Password + Identity Key)
+		// 1. Users table (Username + Bcrypt Password + Identity Key + Phone Number + Signal PIN)
 		`CREATE TABLE IF NOT EXISTS users (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			username VARCHAR(64) UNIQUE NOT NULL,
-			password_hash TEXT NOT NULL,
+			username VARCHAR(64) UNIQUE,
+			password_hash TEXT,
+			phone_number VARCHAR(64) UNIQUE,
+			signal_pin_hash TEXT,
 			identity_key TEXT NOT NULL,
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);`,
+
+		// 1b. Additional columns for users table (if users table existed previously)
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(64) UNIQUE;`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS signal_pin_hash TEXT;`,
+		`ALTER TABLE users ALTER COLUMN username DROP NOT NULL;`,
+		`ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;`,
+
+		// 1c. Auth Identities table (Maps Google/Apple/Passkey IDs to user_id)
+		`CREATE TABLE IF NOT EXISTS auth_identities (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+			provider VARCHAR(32) NOT NULL, -- 'google', 'apple', 'passkey', 'phone'
+			provider_user_id VARCHAR(255) NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			CONSTRAINT unique_provider_user UNIQUE(provider, provider_user_id)
 		);`,
 
 		// 2. Devices table (Multi-device management)
