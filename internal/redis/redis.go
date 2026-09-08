@@ -2,9 +2,10 @@ package redis
 
 import (
 	"context"
-	"log"
 	"os"
 	"time"
+
+	"chat-app/internal/logger"
 
 	redis "github.com/redis/go-redis/v9"
 )
@@ -39,9 +40,9 @@ func InitRedis() *RedisService {
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {
-		log.Printf("Warning: Redis connection ping failed (%v). Running without Redis Pub/Sub cluster.\n", err)
+		logger.Log.Warn("Redis connection ping failed. Running without Redis Pub/Sub cluster.", "error", err)
 	} else {
-		log.Println("Successfully connected to Redis server for Pub/Sub message routing!")
+		logger.Log.Info("Successfully connected to Redis server for Pub/Sub message routing!")
 	}
 
 	return &RedisService{Client: client}

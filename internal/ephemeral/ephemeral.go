@@ -2,8 +2,9 @@ package ephemeral
 
 import (
 	"context"
-	"log"
 	"time"
+
+	"chat-app/internal/logger"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -13,7 +14,7 @@ func StartWorker(db *pgxpool.Pool, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	log.Printf("Ephemeral Message Cleanup Worker started (Interval: %v)\n", interval)
+	logger.Log.Info("Ephemeral Message Cleanup Worker started", "interval", interval.String())
 
 	for range ticker.C {
 		cleanupExpiredMessages(db)
@@ -31,11 +32,11 @@ func cleanupExpiredMessages(db *pgxpool.Pool) {
 	`
 	res, err := db.Exec(ctx, query)
 	if err != nil {
-		log.Printf("Error purging expired ephemeral messages: %v\n", err)
+		logger.Log.Error("Error purging expired ephemeral messages", "error", err)
 		return
 	}
 
 	if res.RowsAffected() > 0 {
-		log.Printf("[EPHEMERAL CLEANUP] Automatically purged %d expired ephemeral messages from offline queue.\n", res.RowsAffected())
+		logger.Log.Info("Automatically purged expired ephemeral messages from offline queue", "rows_affected", res.RowsAffected())
 	}
 }

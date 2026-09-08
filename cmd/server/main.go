@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,6 +15,7 @@ import (
 	"chat-app/internal/group"
 	"chat-app/internal/keys"
 	"chat-app/internal/location"
+	"chat-app/internal/logger"
 	"chat-app/internal/media"
 	"chat-app/internal/message"
 	"chat-app/internal/pin"
@@ -34,6 +34,9 @@ import (
 )
 
 func main() {
+	// Initialize Zero-Knowledge Structured Logger inspired by Signal Server
+	logger.InitLogger()
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -47,14 +50,15 @@ func main() {
 		// Initialize database connection and run migration DDL queries
 		dbPool, err = db.InitDB(dbURL)
 		if err != nil {
-			log.Fatalf("Database initialization failed: %v\n", err)
+			logger.Log.Error("Database initialization failed", "error", err)
+			os.Exit(1)
 		}
 		defer dbPool.Close()
 
 		// Start background Ephemeral Message Cleanup Worker (Purges expired offline messages every 30s)
 		go ephemeral.StartWorker(dbPool, 30*time.Second)
 	} else {
-		log.Println("Warning: DATABASE_URL not set. Running in database-less mode.")
+		logger.Log.Warn("DATABASE_URL not set. Running in database-less mode.")
 	}
 
 	// Initialize Redis Service for cluster Pub/Sub
@@ -62,8 +66,8 @@ func main() {
 
 	r := chi.NewRouter()
 
-	// Configure standard HTTP middlewares
-	r.Use(middleware.Logger)
+	// Configure standard HTTP middlewares with structured logging
+	r.Use(logger.RequestLogger)
 	r.Use(middleware.Recoverer)
 
 	// Initialize component handlers
@@ -269,9 +273,9 @@ func main() {
 		})
 	})
 
-	log.Printf("Chat Server running on http://localhost:%s...\n", port)
+	logger.Log.Info("Chat Server running", "port", port, "url", "http://localhost:"+port)
 	if err := http.ListenAndServe(":"+port, r); err != nil {
-		log.Fatalf("Server startup failed: %v\n", err)
+		logger.Log.Error("Server startup failed", "error", err)
 	}
 }
 
