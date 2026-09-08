@@ -7,6 +7,14 @@
   },
   "servers": [
     {
+      "url": "/",
+      "description": "Current Environment Server (Auto-detect)"
+    },
+    {
+      "url": "https://chatapp-backend-dyg1.onrender.com",
+      "description": "Render Production Server"
+    },
+    {
       "url": "http://localhost:8080",
       "description": "Local Development Server"
     }
