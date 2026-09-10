@@ -51,6 +51,19 @@ func GenerateToken(userID string, deviceID int, duration time.Duration) (string,
 	return fmt.Sprintf("%s.%s", unsignedToken, signatureB64), nil
 }
 
+// GenerateTokenPair generates access and refresh tokens
+func GenerateTokenPair(userID string, deviceID int) (string, string, error) {
+	accessToken, err := GenerateToken(userID, deviceID, 24*time.Hour)
+	if err != nil {
+		return "", "", err
+	}
+	refreshToken, err := GenerateToken(userID, deviceID, 30*24*time.Hour)
+	if err != nil {
+		return "", "", err
+	}
+	return accessToken, refreshToken, nil
+}
+
 // VerifyToken checks HMAC-SHA256 signature and expiration of a JWT Token
 func VerifyToken(tokenStr string) (*JWTClaims, error) {
 	parts := strings.Split(tokenStr, ".")

@@ -176,6 +176,7 @@ func main() {
 		r.Post("/auth/refresh", authHandler.RefreshToken)
 		r.Post("/auth/otp/send", authHandler.SendOTP)
 		r.Post("/auth/otp/verify", authHandler.VerifyOTP)
+		r.Post("/auth/firebase-phone", authHandler.FirebasePhoneLogin)
 		r.Post("/auth/google", authHandler.GoogleLogin)
 		r.Post("/auth/apple", authHandler.AppleLogin)
 		r.Get("/auth/passkeys/challenge", authHandler.GetPasskeyChallenge)
