@@ -50,6 +50,8 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 
 		// 1b. Additional columns for users table (if users table existed previously)
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(64) UNIQUE;`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255) UNIQUE;`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;`,
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS signal_pin_hash TEXT;`,
 		`ALTER TABLE users ALTER COLUMN username DROP NOT NULL;`,
 		`ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;`,
