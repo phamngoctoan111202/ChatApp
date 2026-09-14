@@ -55,6 +55,7 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS signal_pin_hash TEXT;`,
 		`ALTER TABLE users ALTER COLUMN username DROP NOT NULL;`,
 		`ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;`,
+		`ALTER TABLE users ALTER COLUMN identity_key DROP NOT NULL;`,
 
 		// 1c. Auth Identities table (Maps Google/Apple/Passkey IDs to user_id)
 		`CREATE TABLE IF NOT EXISTS auth_identities (

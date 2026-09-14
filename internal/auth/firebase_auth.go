@@ -62,9 +62,13 @@ func (h *AuthHandler) FirebasePhoneLogin(w http.ResponseWriter, r *http.Request)
 
 	if err != nil {
 		// Create new user in PostgreSQL
+		identityKey := req.IdentityKey
+		if identityKey == "" {
+			identityKey = "default_identity_key"
+		}
 		err = h.db.QueryRow(ctx,
-			"INSERT INTO users (username, phone_number, created_at) VALUES ($1, $1, NOW()) RETURNING id",
-			verifiedPhone,
+			"INSERT INTO users (username, phone_number, identity_key, created_at) VALUES ($1, $1, $2, NOW()) RETURNING id",
+			verifiedPhone, identityKey,
 		).Scan(&userID)
 
 		if err != nil {
