@@ -243,3 +243,40 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		"access_token": newAccessToken,
 	})
 }
+
+type UpdateAvatarRequest struct {
+	AvatarURL string `json:"avatar_url"`
+}
+
+// UpdateAvatar updates user avatar URL in the database
+func (h *AuthHandler) UpdateAvatar(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(UserIDKey)
+	if userID == nil || userID == "" {
+		userIDStr := r.Header.Get("X-User-ID")
+		if userIDStr != "" {
+			userID = userIDStr
+		}
+	}
+	if userID == nil || userID == "" {
+		http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	var req UpdateAvatarRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"Invalid request payload"}`, http.StatusBadRequest)
+		return
+	}
+
+	_, err := h.db.Exec(r.Context(), "UPDATE users SET avatar_url = $1 WHERE id = $2", req.AvatarURL, userID)
+	if err != nil {
+		http.Error(w, `{"error":"Failed to update avatar"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":     "success",
+		"avatar_url": req.AvatarURL,
+	})
+}

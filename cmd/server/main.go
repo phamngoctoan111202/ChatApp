@@ -213,6 +213,9 @@ func main() {
 			// Zero-Knowledge Encrypted Attachment Upload Endpoint
 			r.Post("/attachments/upload", mediaHandler.UploadEncryptedBlob)
 
+			// User Profile & Avatar Endpoint
+			r.Put("/user/avatar", authHandler.UpdateAvatar)
+
 			// FCM / APNs Push Notification Token Registration
 			r.Post("/push/token", pushHandler.RegisterPushToken)
 
