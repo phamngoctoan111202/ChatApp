@@ -12,6 +12,7 @@ import (
 
 	"chat-app/internal/auth"
 	"chat-app/internal/block"
+	"chat-app/internal/logger"
 	"chat-app/internal/presence"
 	"chat-app/internal/push"
 	"chat-app/internal/redis"
@@ -85,7 +86,7 @@ func (h *Hub) Run() {
 			h.clients[client.UserID][client.DeviceID] = client
 			h.mutex.Unlock()
 
-			log.Printf("User %s (Device %d) is online via WebSocket.\n", client.UserID, client.DeviceID)
+			logger.Log.Info("WebSocket client connected", "userID", client.UserID, "deviceID", client.DeviceID)
 
 			// Update presence status to online
 			go presence.SetUserPresence(h.db, client.UserID, true)
@@ -103,7 +104,7 @@ func (h *Hub) Run() {
 				if _, exists := devMap[client.DeviceID]; exists {
 					delete(devMap, client.DeviceID)
 					close(client.Send)
-					log.Printf("User %s (Device %d) disconnected.\n", client.UserID, client.DeviceID)
+					logger.Log.Info("WebSocket client disconnected", "userID", client.UserID, "deviceID", client.DeviceID)
 				}
 				if len(devMap) == 0 {
 					delete(h.clients, client.UserID)
@@ -152,7 +153,7 @@ func (h *Hub) RouteMessage(msg *WSMessage) {
 	// Handle Sealed Sender Verification (Anonymized Sender Envelope)
 	if msg.IsSealed {
 		if err := sealed.VerifyCertificate(msg.SealedCertificate); err != nil {
-			log.Printf("Sealed Sender rejection: Invalid or expired certificate (%v)\n", err)
+			logger.Log.Warn("Sealed Sender rejection: Invalid or expired certificate", "err", err)
 			return
 		}
 		senderUserID = msg.SealedCertificate.UserID
@@ -166,9 +167,7 @@ func (h *Hub) RouteMessage(msg *WSMessage) {
 		msgToSend.SenderDeviceID = 0
 	}
 
-	if msg.Event == "watch_together" {
-		log.Printf("Relaying Watch Together sync event from User %s (Device %d) [Group: %s, Recipient: %s]\n", senderUserID, senderDevID, msg.GroupID, msg.RecipientID)
-	}
+	logger.Log.Info("Routing WebSocket message", "event", msg.Event, "senderID", senderUserID, "recipientID", msg.RecipientID, "groupID", msg.GroupID)
 
 	// Handle Group Chat Fan-Out (Signal Group V2)
 	if msg.GroupID != "" {
@@ -262,6 +261,7 @@ func (h *Hub) deliverOrQueue(ctx context.Context, targetUserID string, targetDev
 	if online {
 		select {
 		case client.Send <- msgBytes:
+			logger.Log.Info("Delivered message to active online WebSocket device", "recipientID", targetUserID, "deviceID", targetDeviceID, "event", msg.Event)
 			return
 		default:
 		}
@@ -271,11 +271,13 @@ func (h *Hub) deliverOrQueue(ctx context.Context, targetUserID string, targetDev
 		channel := "signal:msg:" + targetUserID + ":" + strconv.Itoa(targetDeviceID)
 		err := h.redis.PublishMessage(ctx, channel, msgBytes)
 		if err == nil {
+			logger.Log.Info("Published message via Redis PubSub", "recipientID", targetUserID, "deviceID", targetDeviceID)
 			return
 		}
 	}
 
 	// Target device is offline -> Trigger Push Notification (FCM/APNs) & Queue to PostgreSQL
+	logger.Log.Info("Target device offline. Queued offline message and triggered push notification", "recipientID", targetUserID, "deviceID", targetDeviceID)
 	_, mode := block.IsBlocked(h.db, targetUserID, actualSenderID)
 	if mode != "restrict" {
 		push.SendPushNotification(ctx, h.db, targetUserID, targetDeviceID, "New E2EE Message Available")
