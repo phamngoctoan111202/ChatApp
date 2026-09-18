@@ -243,6 +243,7 @@ func main() {
 
 			// User Presence & Block / Restrict Service
 			r.Route("/users", func(r chi.Router) {
+				r.Get("/search", authHandler.SearchUsers)
 				r.Get("/{id}/presence", presenceHandler.GetUserPresence)
 				r.Post("/block", blockHandler.BlockUser)
 				r.Delete("/block/{user_id}", blockHandler.UnblockUser)
