@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -287,7 +288,7 @@ type UserSearchResult struct {
 
 // SearchUsers searches users by username or phone number
 func (h *AuthHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query().Get("q")
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	w.Header().Set("Content-Type", "application/json")
 	if query == "" {
 		json.NewEncoder(w).Encode([]UserSearchResult{})
@@ -299,9 +300,16 @@ func (h *AuthHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	phoneAlt := query
+	if strings.HasPrefix(query, "0") && len(query) > 1 {
+		phoneAlt = "+84" + query[1:]
+	} else if strings.HasPrefix(query, "+84") && len(query) > 3 {
+		phoneAlt = "0" + query[3:]
+	}
+
 	rows, err := h.db.Query(r.Context(),
-		"SELECT id, username, COALESCE(phone_number, ''), COALESCE(avatar_url, '') FROM users WHERE username ILIKE $1 OR phone_number ILIKE $1 LIMIT 20",
-		"%"+query+"%")
+		"SELECT id, username, COALESCE(phone_number, ''), COALESCE(avatar_url, '') FROM users WHERE username ILIKE $1 OR phone_number ILIKE $1 OR phone_number ILIKE $2 LIMIT 20",
+		"%"+query+"%", "%"+phoneAlt+"%")
 	if err != nil {
 		json.NewEncoder(w).Encode([]UserSearchResult{})
 		return
