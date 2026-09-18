@@ -295,14 +295,7 @@ func (h *AuthHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.db == nil {
-		results := []UserSearchResult{
-			{
-				UserID:      "user_" + query,
-				Username:    query,
-				PhoneNumber: query,
-			},
-		}
-		json.NewEncoder(w).Encode(results)
+		json.NewEncoder(w).Encode([]UserSearchResult{})
 		return
 	}
 
@@ -310,20 +303,12 @@ func (h *AuthHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
 		"SELECT id, username, COALESCE(phone_number, ''), COALESCE(avatar_url, '') FROM users WHERE username ILIKE $1 OR phone_number ILIKE $1 LIMIT 20",
 		"%"+query+"%")
 	if err != nil {
-		// Return empty list on query failure or mock fallback result
-		results := []UserSearchResult{
-			{
-				UserID:      "user_" + query,
-				Username:    query,
-				PhoneNumber: query,
-			},
-		}
-		json.NewEncoder(w).Encode(results)
+		json.NewEncoder(w).Encode([]UserSearchResult{})
 		return
 	}
 	defer rows.Close()
 
-	var results []UserSearchResult
+	results := make([]UserSearchResult, 0)
 	for rows.Next() {
 		var u UserSearchResult
 		if err := rows.Scan(&u.UserID, &u.Username, &u.PhoneNumber, &u.AvatarURL); err == nil {
@@ -331,14 +316,5 @@ func (h *AuthHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if results == nil {
-		results = []UserSearchResult{
-			{
-				UserID:      "user_" + query,
-				Username:    query,
-				PhoneNumber: query,
-			},
-		}
-	}
 	json.NewEncoder(w).Encode(results)
 }
