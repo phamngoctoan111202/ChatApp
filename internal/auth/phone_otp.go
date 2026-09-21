@@ -146,7 +146,7 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 			devName = "Phone Primary Device"
 		}
 		_, err = tx.Exec(ctx, `
-			INSERT INTO devices (user_id, device_id, name, platform)
+			INSERT INTO devices (user_id, device_id, device_name, platform)
 			VALUES ($1, 1, $2, 'primary')
 		`, userID, devName)
 		if err != nil {

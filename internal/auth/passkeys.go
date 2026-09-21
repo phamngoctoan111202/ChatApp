@@ -82,7 +82,7 @@ func (h *AuthHandler) RegisterPasskey(w http.ResponseWriter, r *http.Request) {
 		if devName == "" {
 			devName = "Passkey Primary Device"
 		}
-		_, err = tx.Exec(ctx, "INSERT INTO devices (user_id, device_id, name, platform) VALUES ($1, 1, $2, 'primary')", userID, devName)
+		_, err = tx.Exec(ctx, "INSERT INTO devices (user_id, device_id, device_name, platform) VALUES ($1, 1, $2, 'primary')", userID, devName)
 		if err != nil {
 			logger.Log.Error("Failed to insert primary device", "error", err)
 			http.Error(w, `{"error":"Failed to initialize primary device"}`, http.StatusInternalServerError)

@@ -139,7 +139,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	queryDevice := `
-		INSERT INTO devices (user_id, device_id, name, platform)
+		INSERT INTO devices (user_id, device_id, device_name, platform)
 		VALUES ($1, 1, $2, 'primary')
 	`
 	_, err = tx.Exec(ctx, queryDevice, userID, devName)

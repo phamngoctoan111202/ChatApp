@@ -71,14 +71,20 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		`CREATE TABLE IF NOT EXISTS devices (
 			user_id UUID REFERENCES users(id) ON DELETE CASCADE,
 			device_id INT NOT NULL, -- 1: Primary Phone, 2+: Secondary Devices
-			device_name VARCHAR(128) NOT NULL,
+			device_name VARCHAR(128) NOT NULL DEFAULT 'Primary Device',
 			push_token TEXT,
 			platform VARCHAR(32) DEFAULT 'unknown',
 			last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (user_id, device_id)
 		);`,
-		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS device_name VARCHAR(128);`,
+		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS device_name VARCHAR(128) DEFAULT 'Primary Device';`,
+		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS name VARCHAR(128) DEFAULT 'Primary Device';`,
+
+		// Auto-heal legacy users without a primary device row (device_id = 1)
+		`INSERT INTO devices (user_id, device_id, device_name, platform, created_at, last_seen)
+		 SELECT id, 1, 'Primary Device', 'primary', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM users
+		 ON CONFLICT (user_id, device_id) DO NOTHING;`,
 
 		// 2b. Identity Keys table (Multi-device Identity Keys)
 		`CREATE TABLE IF NOT EXISTS identity_keys (

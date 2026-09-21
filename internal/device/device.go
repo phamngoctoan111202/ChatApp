@@ -99,7 +99,7 @@ func (h *DeviceHandler) LinkDevice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := `
-		INSERT INTO devices (user_id, device_id, name, platform)
+		INSERT INTO devices (user_id, device_id, device_name, platform)
 		VALUES ($1, $2, $3, $4)
 	`
 	_, err := h.db.Exec(ctx, query, userID, newDeviceID, devName, platform)

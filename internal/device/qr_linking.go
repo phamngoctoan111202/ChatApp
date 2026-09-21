@@ -98,7 +98,7 @@ func (h *DeviceHandler) ApproveQRSession(w http.ResponseWriter, r *http.Request)
 		platform = "secondary_qr"
 	}
 
-	_, err := h.db.Exec(ctx, "INSERT INTO devices (user_id, device_id, name, platform) VALUES ($1, $2, $3, $4)", userID, newDeviceID, devName, platform)
+	_, err := h.db.Exec(ctx, "INSERT INTO devices (user_id, device_id, device_name, platform) VALUES ($1, $2, $3, $4)", userID, newDeviceID, devName, platform)
 	if err != nil {
 		qrMutex.Unlock()
 		logger.Log.Error("Failed to insert QR linked device", "error", err)
