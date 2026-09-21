@@ -308,19 +308,13 @@ func (h *Hub) deliverOrQueue(ctx context.Context, targetUserID string, targetDev
 }
 
 func (h *Hub) queueOfflineMessage(ctx context.Context, recipientID string, recipientDeviceID int, msg *WSMessage, actualSenderID string) {
-	// Auto-ensure user row exists in 'users' table
-	_, _ = h.db.Exec(ctx, `
-		INSERT INTO users (id, phone_number, identity_key, created_at)
-		VALUES ($1, $1, 'default_key', NOW())
-		ON CONFLICT (id) DO NOTHING
-	`, recipientID)
-
-	// Auto-ensure device row exists in 'devices' table to satisfy Foreign Key constraint
-	_, _ = h.db.Exec(ctx, `
-		INSERT INTO devices (user_id, device_id, device_name, created_at, last_seen)
-		VALUES ($1, $2, 'Primary Device', NOW(), NOW())
-		ON CONFLICT (user_id, device_id) DO NOTHING
-	`, recipientID, recipientDeviceID)
+	// Verify target device exists in devices table to satisfy FK constraint
+	var exists bool
+	err := h.db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM devices WHERE user_id = $1 AND device_id = $2)", recipientID, recipientDeviceID).Scan(&exists)
+	if err != nil || !exists {
+		logger.Log.Warn("Recipient device does not exist in DB, skipping offline message queue", "recipientID", recipientID, "deviceID", recipientDeviceID)
+		return
+	}
 
 	var payload struct {
 		Ciphertext   string `json:"ciphertext"`
@@ -337,12 +331,12 @@ func (h *Hub) queueOfflineMessage(ctx context.Context, recipientID string, recip
 		INSERT INTO offline_messages (id, recipient_id, recipient_device_id, sender_id, ciphertext, ephemeral_key, ephemeral_ttl_seconds)
 		VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
 	`
-	_, err := h.db.Exec(ctx, query, recipientID, recipientDeviceID, dbSenderID, payload.Ciphertext, payload.EphemeralKey, msg.TTLSeconds)
+	_, err = h.db.Exec(ctx, query, recipientID, recipientDeviceID, dbSenderID, payload.Ciphertext, payload.EphemeralKey, msg.TTLSeconds)
 	if err != nil {
-		log.Printf("Failed to save offline message for user %s (device %d): %v\n", recipientID, recipientDeviceID, err)
+		logger.Log.Error("Failed to save offline message", "recipientID", recipientID, "deviceID", recipientDeviceID, "err", err)
 		return
 	}
-	log.Printf("Saved 1 offline message for user %s (device %d) [TTL: %ds].\n", recipientID, recipientDeviceID, msg.TTLSeconds)
+	logger.Log.Info("Saved offline message successfully", "recipientID", recipientID, "deviceID", recipientDeviceID, "ttl", msg.TTLSeconds)
 }
 
 func (h *Hub) deliverOfflineMessages(client *Client) {

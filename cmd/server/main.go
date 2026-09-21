@@ -191,6 +191,7 @@ func main() {
 		r.Get("/devices/qr/status", deviceHandler.GetQRSessionStatus)
 
 		// Public Prekey Bundle retrieval endpoint for recipient lookup
+		r.Get("/keys/{uuid}", keysHandler.GetUserPrekeyBundles)
 		r.Get("/keys/user/{uuid}", keysHandler.GetUserPrekeyBundles)
 
 		// Public Encrypted Attachment Download Endpoint

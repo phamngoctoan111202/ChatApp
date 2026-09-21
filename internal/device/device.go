@@ -44,7 +44,7 @@ func (h *DeviceHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	rows, err := h.db.Query(ctx, "SELECT device_id, name, platform, last_seen FROM devices WHERE user_id = $1 ORDER BY device_id ASC", userID)
+	rows, err := h.db.Query(ctx, "SELECT device_id, device_name, platform, last_seen FROM devices WHERE user_id = $1 ORDER BY device_id ASC", userID)
 	if err != nil {
 		http.Error(w, `{"error":"Failed to query device list"}`, http.StatusInternalServerError)
 		return

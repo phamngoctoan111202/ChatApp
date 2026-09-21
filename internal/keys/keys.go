@@ -26,15 +26,16 @@ type OneTimePrekeyDTO struct {
 }
 
 type UploadKeysRequest struct {
-	SignedPrekey   SignedPrekeyDTO    `json:"signed_prekey"`
-	OneTimePrekeys []OneTimePrekeyDTO `json:"one_time_prekeys"`
+	IdentityKey    string             `json:"identity_key"`
+	SignedPrekey   SignedPrekeyDTO    `json:"signed_pre_key"`
+	OneTimePrekeys []OneTimePrekeyDTO `json:"one_time_pre_keys"`
 }
 
 type DeviceBundleDTO struct {
 	DeviceID      int               `json:"device_id"`
 	IdentityKey   string            `json:"identity_key"`
-	SignedPrekey  SignedPrekeyDTO   `json:"signed_prekey"`
-	OneTimePrekey *OneTimePrekeyDTO `json:"one_time_prekey,omitempty"`
+	SignedPrekey  SignedPrekeyDTO   `json:"signed_pre_key"`
+	OneTimePrekey *OneTimePrekeyDTO `json:"one_time_pre_key,omitempty"`
 }
 
 type KeysHandler struct {
@@ -53,6 +54,9 @@ func (h *KeysHandler) UploadKeys(w http.ResponseWriter, r *http.Request) {
 	if userID == "" {
 		http.Error(w, `{"error":"Unauthorized request context"}`, http.StatusUnauthorized)
 		return
+	}
+	if deviceID <= 0 {
+		deviceID = 1
 	}
 
 	var req UploadKeysRequest
@@ -75,6 +79,18 @@ func (h *KeysHandler) UploadKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback(ctx)
+
+	// Save Identity Key if provided
+	if req.IdentityKey != "" {
+		_, _ = tx.Exec(ctx, "UPDATE users SET identity_key = $1 WHERE id = $2", req.IdentityKey, userID)
+		queryIdentityKey := `
+			INSERT INTO identity_keys (user_id, device_id, identity_key)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (user_id, device_id)
+			DO UPDATE SET identity_key = EXCLUDED.identity_key
+		`
+		_, _ = tx.Exec(ctx, queryIdentityKey, userID, deviceID, req.IdentityKey)
+	}
 
 	// 1. Save/Update Signed Prekey for this (user_id, device_id)
 	querySigned := `
@@ -115,6 +131,9 @@ func (h *KeysHandler) UploadKeys(w http.ResponseWriter, r *http.Request) {
 func (h *KeysHandler) GetUserPrekeyBundles(w http.ResponseWriter, r *http.Request) {
 	recipientUUID := chi.URLParam(r, "uuid")
 	if recipientUUID == "" {
+		recipientUUID = chi.URLParam(r, "userId")
+	}
+	if recipientUUID == "" {
 		http.Error(w, `{"error":"Missing recipient UUID"}`, http.StatusBadRequest)
 		return
 	}
@@ -124,7 +143,7 @@ func (h *KeysHandler) GetUserPrekeyBundles(w http.ResponseWriter, r *http.Reques
 
 	// 1. Get Recipient Identity Key
 	var identityKey string
-	err := h.db.QueryRow(ctx, "SELECT identity_key FROM users WHERE id = $1", recipientUUID).Scan(&identityKey)
+	err := h.db.QueryRow(ctx, "SELECT COALESCE(identity_key, '') FROM users WHERE id = $1", recipientUUID).Scan(&identityKey)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			http.Error(w, `{"error":"Recipient user not found"}`, http.StatusNotFound)
@@ -149,9 +168,21 @@ func (h *KeysHandler) GetUserPrekeyBundles(w http.ResponseWriter, r *http.Reques
 			deviceIDs = append(deviceIDs, devID)
 		}
 	}
+	if len(deviceIDs) == 0 {
+		deviceIDs = []int{1}
+	}
 
 	var bundles []DeviceBundleDTO
+	var primarySignedPrekey *SignedPrekeyDTO
+	var primaryOneTimePrekey *OneTimePrekeyDTO
+
 	for _, devID := range deviceIDs {
+		devIdentityKey := identityKey
+		var ik string
+		if errIK := h.db.QueryRow(ctx, "SELECT identity_key FROM identity_keys WHERE user_id = $1 AND device_id = $2", recipientUUID, devID).Scan(&ik); errIK == nil && ik != "" {
+			devIdentityKey = ik
+		}
+
 		var spk SignedPrekeyDTO
 		err := h.db.QueryRow(ctx, "SELECT key_id, public_key, signature FROM signed_prekeys WHERE user_id = $1 AND device_id = $2", recipientUUID, devID).Scan(&spk.KeyID, &spk.PublicKey, &spk.Signature)
 		if err != nil {
@@ -160,7 +191,7 @@ func (h *KeysHandler) GetUserPrekeyBundles(w http.ResponseWriter, r *http.Reques
 
 		bundle := DeviceBundleDTO{
 			DeviceID:     devID,
-			IdentityKey:  identityKey,
+			IdentityKey:  devIdentityKey,
 			SignedPrekey: spk,
 		}
 
@@ -184,13 +215,32 @@ func (h *KeysHandler) GetUserPrekeyBundles(w http.ResponseWriter, r *http.Reques
 			}
 		}
 
+		if devID == 1 || primarySignedPrekey == nil {
+			spkCopy := spk
+			primarySignedPrekey = &spkCopy
+			if bundle.OneTimePrekey != nil {
+				opkCopy := *bundle.OneTimePrekey
+				primaryOneTimePrekey = &opkCopy
+			}
+		}
+
 		bundles = append(bundles, bundle)
+	}
+
+	if primarySignedPrekey == nil {
+		primarySignedPrekey = &SignedPrekeyDTO{KeyID: 1, PublicKey: identityKey, Signature: ""}
+	}
+
+	resp := map[string]interface{}{
+		"user_id":          recipientUUID,
+		"recipient_id":     recipientUUID,
+		"identity_key":     identityKey,
+		"signed_pre_key":   primarySignedPrekey,
+		"one_time_pre_key": primaryOneTimePrekey,
+		"devices":          bundles,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"recipient_id": recipientUUID,
-		"devices":      bundles,
-	})
+	json.NewEncoder(w).Encode(resp)
 }
