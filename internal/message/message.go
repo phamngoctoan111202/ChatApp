@@ -269,11 +269,7 @@ func (h *Hub) deliverOrQueue(ctx context.Context, targetUserID string, targetDev
 
 	if h.redis != nil && h.redis.Client != nil {
 		channel := "signal:msg:" + targetUserID + ":" + strconv.Itoa(targetDeviceID)
-		err := h.redis.PublishMessage(ctx, channel, msgBytes)
-		if err == nil {
-			logger.Log.Info("Published message via Redis PubSub", "recipientID", targetUserID, "deviceID", targetDeviceID)
-			return
-		}
+		_ = h.redis.PublishMessage(ctx, channel, msgBytes)
 	}
 
 	// Target device is offline -> Trigger Push Notification (FCM/APNs) & Queue to PostgreSQL
@@ -426,11 +422,15 @@ func (c *Client) ReadPump() {
 	for {
 		_, message, err := c.Conn.ReadMessage()
 		if err != nil {
+			logger.Log.Info("WebSocket disconnect in ReadPump", "userID", c.UserID, "err", err)
 			break
 		}
 
+		logger.Log.Info("WebSocket raw message received", "userID", c.UserID, "payload", string(message))
+
 		var msg WSMessage
 		if err := json.Unmarshal(message, &msg); err != nil {
+			logger.Log.Warn("Failed to unmarshal WebSocket JSON payload", "userID", c.UserID, "err", err, "raw", string(message))
 			continue
 		}
 
@@ -442,6 +442,8 @@ func (c *Client) ReadPump() {
 
 		if msg.Event == "message" || msg.Event == "signaling" {
 			c.Hub.RouteMessage(&msg)
+		} else {
+			logger.Log.Warn("Unhandled WebSocket event received", "userID", c.UserID, "event", msg.Event)
 		}
 	}
 }
