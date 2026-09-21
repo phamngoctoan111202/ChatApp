@@ -308,6 +308,13 @@ func (h *Hub) deliverOrQueue(ctx context.Context, targetUserID string, targetDev
 }
 
 func (h *Hub) queueOfflineMessage(ctx context.Context, recipientID string, recipientDeviceID int, msg *WSMessage, actualSenderID string) {
+	// Auto-ensure device row exists in 'devices' table to satisfy Foreign Key constraint
+	_, _ = h.db.Exec(ctx, `
+		INSERT INTO devices (user_id, device_id, device_name, created_at, last_seen)
+		VALUES ($1, $2, 'Primary Device', NOW(), NOW())
+		ON CONFLICT (user_id, device_id) DO NOTHING
+	`, recipientID, recipientDeviceID)
+
 	var payload struct {
 		Ciphertext   string `json:"ciphertext"`
 		EphemeralKey string `json:"ephemeral_key"`
