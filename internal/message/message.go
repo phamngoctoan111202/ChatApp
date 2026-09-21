@@ -120,11 +120,34 @@ func (h *Hub) Run() {
 	}
 }
 
+func safeSend(client *Client, msgBytes []byte) (sent bool) {
+	if client == nil || client.Send == nil {
+		return false
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			sent = false
+		}
+	}()
+	select {
+	case client.Send <- msgBytes:
+		return true
+	default:
+		return false
+	}
+}
+
 // subscribeDeviceRedis listens for incoming Redis PubSub messages for client
 func (h *Hub) subscribeDeviceRedis(client *Client) {
 	if h.redis == nil || h.redis.Client == nil {
 		return
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Log.Warn("Recovered from panic in subscribeDeviceRedis", "userID", client.UserID, "err", r)
+		}
+	}()
 
 	channel := "signal:msg:" + client.UserID + ":" + strconv.Itoa(client.DeviceID)
 	pubsub := h.redis.SubscribeChannel(context.Background(), channel)
@@ -135,10 +158,15 @@ func (h *Hub) subscribeDeviceRedis(client *Client) {
 
 	ch := pubsub.Channel()
 	for msg := range ch {
-		select {
-		case client.Send <- []byte(msg.Payload):
-		default:
+		h.mutex.RLock()
+		_, isOnline := h.clients[client.UserID][client.DeviceID]
+		h.mutex.RUnlock()
+
+		if !isOnline {
+			break
 		}
+
+		safeSend(client, []byte(msg.Payload))
 	}
 }
 
@@ -259,11 +287,9 @@ func (h *Hub) deliverOrQueue(ctx context.Context, targetUserID string, targetDev
 	h.mutex.RUnlock()
 
 	if online {
-		select {
-		case client.Send <- msgBytes:
+		if safeSend(client, msgBytes) {
 			logger.Log.Info("Delivered message to active online WebSocket device", "recipientID", targetUserID, "deviceID", targetDeviceID, "event", msg.Event)
 			return
-		default:
 		}
 	}
 
@@ -369,9 +395,9 @@ func (h *Hub) deliverOfflineMessages(client *Client) {
 		}
 
 		msgBytes, _ := json.Marshal(wsMsg)
-		client.Send <- msgBytes
-
-		_, _ = h.db.Exec(ctx, "DELETE FROM offline_messages WHERE id = $1", pm.ID)
+		if safeSend(client, msgBytes) {
+			_, _ = h.db.Exec(ctx, "DELETE FROM offline_messages WHERE id = $1", pm.ID)
+		}
 	}
 }
 
@@ -400,10 +426,7 @@ func (h *Hub) sendACK(senderID string, senderDeviceID int, targetID string, orig
 	}
 
 	msgBytes, _ := json.Marshal(ackMsg)
-	select {
-	case client.Send <- msgBytes:
-	default:
-	}
+	safeSend(client, msgBytes)
 }
 
 func (c *Client) ReadPump() {
