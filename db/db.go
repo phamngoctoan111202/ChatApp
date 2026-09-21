@@ -97,10 +97,12 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			PRIMARY KEY (user_id, device_id)
 		);`,
 		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS device_name VARCHAR(128) DEFAULT 'Primary Device';`,
+		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS name VARCHAR(128) DEFAULT 'Primary Device';`,
+		`ALTER TABLE devices ALTER COLUMN name DROP NOT NULL;`,
 
 		// Auto-heal legacy users without a primary device row (device_id = 1)
-		`INSERT INTO devices (user_id, device_id, device_name, platform, created_at, last_seen)
-		 SELECT id, 1, 'Primary Device', 'primary', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM users
+		`INSERT INTO devices (user_id, device_id, device_name, name, platform, created_at, last_seen)
+		 SELECT id, 1, 'Primary Device', 'Primary Device', 'primary', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM users
 		 ON CONFLICT (user_id, device_id) DO NOTHING;`,
 
 		// 4. Identity Keys table (Multi-device Identity Keys)
