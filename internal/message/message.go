@@ -289,7 +289,6 @@ func (h *Hub) deliverOrQueue(ctx context.Context, targetUserID string, targetDev
 	if online {
 		if safeSend(client, msgBytes) {
 			logger.Log.Info("Delivered message to active online WebSocket device", "recipientID", targetUserID, "deviceID", targetDeviceID, "event", msg.Event)
-			return
 		}
 	}
 
@@ -298,8 +297,10 @@ func (h *Hub) deliverOrQueue(ctx context.Context, targetUserID string, targetDev
 		_ = h.redis.PublishMessage(ctx, channel, msgBytes)
 	}
 
-	// Target device is offline -> Trigger Push Notification (FCM/APNs) & Queue to PostgreSQL
-	logger.Log.Info("Target device offline. Queued offline message and triggered push notification", "recipientID", targetUserID, "deviceID", targetDeviceID)
+	// Guaranteed Message Delivery: ALWAYS Queue to PostgreSQL DB and trigger Push Notification
+	// If the active WebSocket drops unexpectedly (abnormal closure 1006), the message is preserved in DB
+	// and will be automatically delivered when the client reconnects.
+	logger.Log.Info("Queued offline message and triggered push notification for guaranteed delivery", "recipientID", targetUserID, "deviceID", targetDeviceID)
 	_, mode := block.IsBlocked(h.db, targetUserID, actualSenderID)
 	if mode != "restrict" {
 		push.SendPushNotification(ctx, h.db, targetUserID, targetDeviceID, "New E2EE Message Available")
